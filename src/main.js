@@ -310,12 +310,23 @@ async function openLibrary() {
         h('div', { class: 'meta' }, h('b', {}, p.name), h('small', {}, new Date(p.updated).toLocaleString(getLang() === 'fr' ? 'fr-FR' : 'en-US'))),
         h('div', { class: 'row-btns' },
           button(T('Ouvrir', 'Open'), async () => { await openProject(p.id); m.close(); toast(T('Leurre ouvert', 'Lure opened')); }, { cls: 'small primary' }),
-          button('', async () => {
-            if (!confirm(T(`Supprimer « ${p.name} » ?`, `Delete "${p.name}"?`))) return;
-            await deleteProject(p.id);
-            if (p.id === state.projectId) state.projectId = null;
-            refresh();
-          }, { cls: 'small danger', ic: 'trash', title: T('Supprimer', 'Delete') })));
+          (() => {
+            // confirmation en deux clics (sans boîte de dialogue système)
+            const del = button('', async () => {
+              if (!del.classList.contains('armed')) {
+                del.classList.add('armed');
+                del.querySelector('span')?.remove();
+                del.append(h('span', {}, T('Confirmer', 'Confirm')));
+                setTimeout(() => { if (del.isConnected) { del.classList.remove('armed'); del.querySelector('span')?.remove(); } }, 3000);
+                return;
+              }
+              await deleteProject(p.id);
+              if (p.id === state.projectId) state.projectId = null;
+              toast(T('Leurre supprimé', 'Lure deleted'));
+              refresh();
+            }, { cls: 'small danger', ic: 'trash', title: T('Supprimer', 'Delete') });
+            return del;
+          })()));
       list.append(card);
     }
   }

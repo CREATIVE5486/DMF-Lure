@@ -110,7 +110,7 @@ select:focus, input[type=text]:focus { border-color: var(--accent); outline: non
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary:hover { background: #46e2c5; }
 .btn.ghost { background: transparent; }
-.btn.danger:hover { border-color: var(--bad); color: var(--bad); }
+.btn.danger:hover, .btn.danger.armed { border-color: var(--bad); color: var(--bad); }
 .btn.small { padding: 6px 10px; font-size: 12.5px; }
 .btn.wide { width: 100%; }
 .btn.icon-only { padding: 5px 7px; }

@@ -1,0 +1,22 @@
+{
+  "name": "dmf-lure-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DMF Lure Studio — logiciel gratuit de conception de leurres de pêche imprimables en 3D",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:single": "vite build --mode single",
+    "preview": "vite preview",
+    "test": "node tests/geometry.test.mjs && node tests/swim.test.mjs"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "6.0.7",
+    "vite-plugin-singlefile": "2.1.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "DMF Lure Studio",
+  "short_name": "DMF Lure",
+  "description": "Concevez, peignez, testez et imprimez vos leurres de pêche.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1a20",
+  "theme_color": "#0b1a20",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

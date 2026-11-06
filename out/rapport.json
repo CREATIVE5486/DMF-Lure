@@ -1,0 +1,135 @@
+{
+  "pauses": {
+    "z_plan_median": 8.8,
+    "pause1_fil": 9.6,
+    "pause2_billes": 11.6,
+    "hauteur_totale": 14.41
+  },
+  "bilan": {
+    "volume_ext_cm3": 10.51,
+    "masse_abs_g": 9.67,
+    "longueur_fil_mm": 161.6,
+    "masse_fil_g": 1.0,
+    "n_billes": 9,
+    "centre_carene": [
+      44.6,
+      1.95
+    ],
+    "poussee_g": 10.5,
+    "materiaux": {
+      "tungstene": {
+        "masse_billes_g": 11.2,
+        "masse_totale_g": 21.9,
+        "cg": [
+          43.6,
+          0.75
+        ],
+        "gb_mm": 1.21
+      },
+      "plomb": {
+        "masse_billes_g": 6.7,
+        "masse_totale_g": 17.3,
+        "cg": [
+          43.9,
+          0.99
+        ],
+        "gb_mm": 0.96
+      },
+      "acier": {
+        "masse_billes_g": 4.6,
+        "masse_totale_g": 15.3,
+        "cg": [
+          44.1,
+          1.15
+        ],
+        "gb_mm": 0.81
+      }
+    }
+  },
+  "billes": [
+    [
+      13.0,
+      -0.24
+    ],
+    [
+      19.0,
+      -0.24
+    ],
+    [
+      25.0,
+      -0.1
+    ],
+    [
+      39.0,
+      -0.28
+    ],
+    [
+      45.0,
+      -0.3
+    ],
+    [
+      51.0,
+      -0.32
+    ],
+    [
+      57.0,
+      -0.24
+    ],
+    [
+      63.0,
+      -0.11
+    ],
+    [
+      69.0,
+      0.16
+    ]
+  ],
+  "conge": {
+    "rayon": 11.8
+  },
+  "armature": {
+    "xc_n": -1.55,
+    "yc_n": 0.3,
+    "r_n": 1.75,
+    "xc_q": 106.14066250481815,
+    "yc_q": -2.4,
+    "r_q": 1.75,
+    "xv": 33.0,
+    "y_bas_v": -5.76,
+    "r_v": 2.0,
+    "ys": 4.2
+  },
+  "parametres": {
+    "bav_angle": 40.0,
+    "bav_sortie": [
+      2.2,
+      -3.3
+    ],
+    "bav_noyee": 2.0,
+    "bav_longueur": 14.8,
+    "bav_larg_racine": 6.0,
+    "bav_larg_max": 11.0,
+    "bav_ep": 1.8,
+    "conge_tangente": 5.0,
+    "conge_demi_larg": 2.6,
+    "oeil_pos": [
+      7.7,
+      2.2
+    ],
+    "oeil_d": 5.2,
+    "oeil_prof": 0.5,
+    "bille_d": 5.0,
+    "bille_jeu": 0.2,
+    "paroi": 0.6,
+    "paroi_ext": 0.8,
+    "fil_jeu": 0.15,
+    "couche": 0.2,
+    "z_mini": 3.0,
+    "sup_jeu_z": 0.25,
+    "sup_pas": 2.5,
+    "sup_ep": 0.8,
+    "sup_retrait": 1.2,
+    "sup_semelle": 0.6,
+    "sup_bord": 3.0
+  }
+}

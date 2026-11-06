@@ -121,7 +121,8 @@ def dessin(ax, a, k, ox, oy, lw_mm, cotes=True):
             fontsize=7, ha="center", color=BLEU)
     ax.text(X(r["xv"] + 9), Y(r["y_bas_v"] - 2.6), f"Épingle ventrale\nØint {a.oeil_ventre_di:.1f}",
             fontsize=7, ha="left", color=BLEU)
-    cote_h(ax, a.x_retour_nez, 0.13, r["yc_n"] + 2.0, f"retour {a.x_retour_nez - 0.13:.1f}", k, ox, oy,
+    xjn = r["xc_n"] + math.sqrt(r["r_n"] ** 2 - (d / 2) ** 2)
+    cote_h(ax, a.x_retour_nez, xjn, r["yc_n"] + 2.4, f"retour {a.x_retour_nez - xjn:.1f}", k, ox, oy,
            yref=r["yc_n"] + 0.5, fs=6)
     xj = r["xc_q"] - math.sqrt(r["r_q"] ** 2 - (d / 2) ** 2)
     cote_h(ax, a.x_retour_queue, xj, r["yc_q"] + 3.4, f"retour {xj - a.x_retour_queue:.1f}", k, ox, oy,
@@ -190,8 +191,9 @@ def main():
                 fontsize=8)
         notes = [
             "• Tout le fil est dans UN SEUL PLAN : poser sur une surface plane après chaque pli et redresser.",
-            "• Œillets nez/queue : enrouler sur un foret Ø2,5 (queue lisse), brins jointifs, le retour se loge contre la tige.",
-            "• Épingle ventrale : enrouler sur un foret Ø3, branches parallèles (entraxe 4,0).",
+            f"• Œillets nez/queue : enrouler sur un foret Ø{a.oeil_nez_di:g} (queue lisse), brins jointifs, le retour se loge contre la tige.",
+            f"• Épingle ventrale : enrouler sur un foret Ø{a.oeil_ventre_di:g}, branches parallèles (entraxe {a.oeil_ventre_di + a.d:g}).",
+            f"• Fil Ø{a.d:g} : pince plate + étau, enrouler les œillets en tournant le foret serré dans l'étau.",
             "• Les cotes horizontales se mesurent parallèlement à la tige ; la silhouette grise = contour du leurre.",
             "• Vérifier à plat sur le gabarit 1:1 (page 2) puis à blanc dans la rainure avant l'impression.",
         ]
@@ -237,9 +239,9 @@ def main():
                 fontsize=7.5)
         conseils = [
             "Ordre conseillé :",
-            "1. Former l'œillet de nez sur le foret Ø2,5 en laissant ≈ 15 mm de queue, recouper le retour à 4,9 mm.",
+            f"1. Former l'œillet de nez sur le foret Ø{a.oeil_nez_di:g} en laissant ≈ 15 mm de queue, recouper le retour à {a.x_retour_nez - a.reperes['xc_n'] - math.sqrt(a.reperes['r_n'] ** 2 - a.d ** 2 / 4):.1f} mm.",
             "2. Plier la montée (coude bas puis coude haut) en se calant sur le gabarit.",
-            "3. Marquer l'axe de l'épingle, enrouler sur foret Ø3, serrer les branches parallèles.",
+            f"3. Marquer l'axe de l'épingle, enrouler sur foret Ø{a.oeil_ventre_di:g}, serrer les branches parallèles.",
             "4. Plier la descente arrière, contrôler sur gabarit.",
             "5. Former l'œillet de queue, recouper le retour.",
             "6. Mettre à plat (étau / marteau sur bois), présenter dans la rainure imprimée.",

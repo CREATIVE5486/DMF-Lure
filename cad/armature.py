@@ -13,12 +13,12 @@ from geom import ventre, QUEUE_BAS, QUEUE_HAUT
 
 @dataclass
 class Armature:
-    d: float = 1.0               # diamètre fil inox
-    oeil_nez_di: float = 2.5     # Ø intérieur œillet de nez (mandrin)
-    oeil_queue_di: float = 2.5   # Ø intérieur œillet de queue
+    d: float = 1.6               # diamètre fil inox
+    oeil_nez_di: float = 3.0     # Ø intérieur œillet de nez (mandrin)
+    oeil_queue_di: float = 3.0   # Ø intérieur œillet de queue
     oeil_ventre_di: float = 3.0  # largeur intérieure de l'épingle ventrale
     oeil_ventre_jour: float = 3.0  # ouverture libre sous le ventre
-    y_nez: float = 0.3           # axe de l'œillet de nez
+    y_nez: float = 0.0           # axe de l'œillet de nez
     y_queue: float = -2.4        # axe de l'œillet de queue
     y_tige: float = 4.2          # hauteur de la tige au milieu
     x_coude1: tuple = (7.0, 12.0)   # début / fin de la montée avant
@@ -27,7 +27,7 @@ class Armature:
     x_retour_nez: float = 5.0    # fin du retour de fil côté nez
     x_retour_queue: float = 97.0  # fin du retour de fil côté queue
     jeu_nez: float = 0.3         # jeu entre œillet et nez
-    jeu_queue: float = 1.0       # œillet entièrement dégagé de la coupe oblique
+    jeu_queue: float = 1.6       # œillet entièrement dégagé de la coupe oblique
     pts: list = field(default_factory=list)
     reperes: dict = field(default_factory=dict)
 

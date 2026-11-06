@@ -26,8 +26,8 @@ OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 P = dict(
     # bavette
     bav_angle=40.0,         # ° sous l'axe du corps (mesuré photo : 38-40°)
-    bav_sortie=(2.2, -3.3),  # point où l'axe de la bavette sort du menton
-    bav_noyee=2.0,          # longueur noyée dans la tête
+    bav_sortie=(2.4, -3.5),  # point où l'axe de la bavette sort du menton
+    bav_noyee=1.2,          # longueur noyée dans la tête
     bav_longueur=14.8,      # longueur visible (sortie -> extrémité)
     bav_larg_racine=6.0,
     bav_larg_max=11.0,
@@ -41,6 +41,10 @@ P = dict(
     paroi_ext=0.8,          # paroi mini puits / peau extérieure (2 périmètres)
     # rainure fil
     fil_jeu=0.15,
+    # hameçons (triple + anneau) pour le bilan d'équilibre
+    hamecon_g=0.9,
+    bille_mat="tungstene",   # matériau utilisé pour l'équilibrage
+    assiette_cible=(0.0, 10.0),  # assiette au repos visée, hameçons montés (° nez en bas)
     # impression
     couche=0.2,
     z_mini=3.0,             # hauteur du point le plus bas de la pièce au-dessus du plateau
@@ -100,7 +104,7 @@ def bavette():
            .extrude(P["bav_ep"] / 2, both=True))
     # arrondi des arêtes de la bavette (bord d'attaque / contour)
     try:
-        lip = lip.edges().fillet(0.6)
+        lip = lip.edges().fillet(0.8)
     except Exception as e:
         print("bavette : arrondi ignoré", e)
     return lip, (r0, d, n, L)
@@ -126,40 +130,52 @@ def conge(bav_geom):
             ta = tm
     C = q0 + d * ta
     Lg = P["conge_tangente"]
-    # tangente au ventre vers l'arrière
-    pente = (ventre(C.x + 1) - ventre(C.x - 1)) / 2
-    tv = cq.Vector(1, pente, 0).normalized()
     T1 = cq.Vector(C.x + Lg, ventre(C.x + Lg), 0)
     tv = (T1 - C).normalized()
-    T2 = C + d * Lg
-    # cercle tangent aux deux droites (longueurs de tangente égales)
-    bis = (tv + d).normalized()
     half = math.acos(max(-1, min(1, tv.dot(d)))) / 2
     R = Lg * math.tan(half)
-    centre = C + bis * (Lg / math.cos(half))
-    mid = centre - bis * R
-    # polygone débordant dans le corps et dans la bavette pour une union propre
-    up = cq.Vector(0, 1.2, 0)
-    pts2 = [(T1 + up), T1, None, T2, (T2 + n * e), (C + up)]
-    wp = (cq.Workplane("XY")
-          .moveTo(pts2[0].x, pts2[0].y).lineTo(T1.x, T1.y)
-          .threePointArc((mid.x, mid.y), (T2.x, T2.y))
-          .lineTo(pts2[4].x, pts2[4].y).lineTo(pts2[5].x, pts2[5].y).close()
-          .extrude(P["bav_larg_racine"] / 2, both=True))
-    # vue de dessous : le congé s'affine vers l'arrière (pleine largeur de la
-    # bavette côté bavette, conge_demi_larg à l'arrière)
-    wb = P["bav_larg_racine"] / 2
-    x_av, x_ar = T2.x - 2, T1.x + 0.5
-    coin = (cq.Workplane("XZ")
-            .polyline([(x_av, -wb), (C.x, -wb), (x_ar, -P["conge_demi_larg"] * 0.5),
-                       (x_ar, P["conge_demi_larg"] * 0.5), (C.x, wb), (x_av, wb)]).close()
-            .extrude(-30).translate((0, -20, 0)))
-    wp = wp.intersect(coin)
-    try:
-        wp = wp.edges("not |Y").fillet(0.6)
-    except Exception as e:
-        print("congé : arrondi latéral ignoré", e)
-    return wp, dict(C=C, R=R)
+    # Repère local : origine C, u le long de la bavette (vers la pointe),
+    # m = -n (de la face inférieure vers le ventre), z latéral.
+    m = n * -1
+    u_t1 = (T1 - C).dot(d)
+    lu0 = (C - r0).dot(d)                       # abscisse de C dans la bavette
+    wr, wm = P["bav_larg_racine"] / 2, P["bav_larg_max"] / 2
+    um = L - wm
+
+    def larg_bav(lu):
+        return wr + (wm - wr) * max(0.0, min(lu, um)) / um
+
+    w_fin = P["conge_demi_larg"]
+
+    def section(u, npts=40):
+        du = u - Lg
+        marc = 0.0 if u >= Lg else R - math.sqrt(max(0.0, R * R - du * du))
+        if u >= 0:
+            hw = larg_bav(lu0 + u)
+        else:
+            k = min(1.0, u / u_t1)
+            hw = larg_bav(lu0) * (1 - k) + w_fin * k
+        mc = (-2 * e + marc) / 2
+        hm = (2 * e + marc) / 2
+        pts = []
+        for i in range(npts):
+            t = 2 * math.pi * i / npts
+            c, s_ = math.cos(t), math.sin(t)
+            fm = math.copysign(abs(c) ** (2 / 2.4), c)
+            fz = math.copysign(abs(s_) ** (2 / 3.5), s_)
+            p = C + d * u + m * (mc + hm * fm) + cq.Vector(0, 0, hw * fz)
+            pts.append(p)
+        return cq.Wire.assembleEdges([cq.Edge.makeSpline(pts, periodic=True)])
+
+    us = []
+    u = Lg + 1.5
+    u_end = u_t1 - 0.6
+    while u > u_end:
+        us.append(u)
+        u -= 0.5
+    us.append(u_end)
+    loft = cq.Solid.makeLoft([section(x) for x in us], ruled=False)
+    return cq.Workplane("XY").add(loft), dict(C=C, R=R)
 
 
 def oeils(body):
@@ -298,35 +314,98 @@ def supports(plein, lip, z_bas):
 DENS = dict(ABS=1.04, inox=7.9, tungstene=19.0, plomb=11.3, acier=7.85, laiton=8.5)
 
 
+def hamecons():
+    """(masse, x, y) des hameçons pendus : ventral sous l'épingle, caudal derrière l'œillet."""
+    r = ARM.reperes
+    m = P["hamecon_g"]
+    return [(m, r["xv"], ventre(r["xv"]) - ARM.oeil_ventre_jour - 7.0),
+            (m, r["xc_q"] + r["r_q"] + 3.0, r["yc_q"] - 6.0)]
+
+
 def bilan(piece, plein, pos):
+    """Masses, centre de gravité (CG), centre de carène (CC), assiettes.
+
+    Roulis : stable si le CG est sous le CC (gb > 0).
+    Tangage : au repos (coulée), le leurre s'incline jusqu'à mettre le CG à la
+    verticale du CC → angle = atan(dx / gb) (positif = nez vers le bas).
+    """
     vp = piece.val()
     m_abs = vp.Volume() / 1000 * DENS["ABS"]
     g_abs = vp.Center()
     l_fil = ARM.longueur()
     m_fil = math.pi * (ARM.d / 2) ** 2 * l_fil / 1000 * DENS["inox"]
-    gx = sum(p[0] for p in ARM.pts) / len(ARM.pts)
-    gy = sum(p[1] for p in ARM.pts) / len(ARM.pts)
+    # centre du fil pondéré par la longueur
+    sx = sy = 0.0
+    for (ax_, ay_), (bx, by) in zip(ARM.pts, ARM.pts[1:]):
+        lg = math.dist((ax_, ay_), (bx, by))
+        sx += lg * (ax_ + bx) / 2
+        sy += lg * (ay_ + by) / 2
+    gx, gy = sx / l_fil, sy / l_fil
     vb = 4 / 3 * math.pi * (P["bille_d"] / 2) ** 3 / 1000
-    yb = sum(p[1] for p in pos) / len(pos)
-    xb = sum(p[0] for p in pos) / len(pos)
-    cb = plein.val().Center()   # centre de carène (volume extérieur)
+    cb = plein.val().Center()
     vol_ext = plein.val().Volume() / 1000
     res = dict(volume_ext_cm3=round(vol_ext, 2), masse_abs_g=round(m_abs, 2),
                longueur_fil_mm=round(l_fil, 1), masse_fil_g=round(m_fil, 2),
                n_billes=len(pos), centre_carene=(round(cb.x, 1), round(cb.y, 2)),
-               poussee_g=round(vol_ext * 1.0, 1), materiaux={})
+               poussee_g=round(vol_ext * 1.0, 1), hamecons_g=2 * P["hamecon_g"], materiaux={})
     for mat in ("tungstene", "plomb", "acier"):
-        mb = len(pos) * vb * DENS[mat]
-        mt = m_abs + m_fil + mb
-        ycg = (m_abs * g_abs.y + m_fil * gy + mb * yb) / mt
-        xcg = (m_abs * g_abs.x + m_fil * gx + mb * xb) / mt
-        res["materiaux"][mat] = dict(masse_billes_g=round(mb, 1), masse_totale_g=round(mt, 1),
-                                     cg=(round(xcg, 1), round(ycg, 2)),
-                                     gb_mm=round(cb.y - ycg, 2))
+        masses = [(m_abs, g_abs.x, g_abs.y), (m_fil, gx, gy)]
+        masses += [(vb * DENS[mat], x, y) for x, y in pos]
+        for avec in (False, True):
+            ms = masses + (hamecons() if avec else [])
+            mt = sum(m for m, _, _ in ms)
+            xcg = sum(m * x for m, x, _ in ms) / mt
+            ycg = sum(m * y for m, _, y in ms) / mt
+            gb = cb.y - ycg
+            dx = cb.x - xcg
+            cle = mat + ("_avec_hamecons" if avec else "")
+            res["materiaux"][cle] = dict(
+                masse_billes_g=round(len(pos) * vb * DENS[mat], 1),
+                masse_totale_g=round(mt, 1), cg=(round(xcg, 2), round(ycg, 2)),
+                gb_mm=round(gb, 2), dx_mm=round(dx, 2),
+                assiette_deg=round(math.degrees(math.atan2(dx, gb)), 1))
     return res
 
 
 # ======================================================================
+def equilibrer(plein, rain, pos_tous):
+    """Retire des puits à l'arrière jusqu'à obtenir l'assiette visée (hameçons montés).
+
+    Les billes à l'arrière + l'hameçon de queue font piquer la queue : on garde le
+    maximum de billes compatible avec une assiette légèrement nez en bas.
+    """
+    rb = P["bille_d"] / 2 + P["bille_jeu"]
+    v_puits = (2 / 3 * math.pi * rb ** 3 + math.pi * rb ** 2 * puits_haut())
+    vb = 4 / 3 * math.pi * (P["bille_d"] / 2) ** 3 / 1000
+    pv = plein.val()
+    cb = pv.Center()
+    v_rain = rain.val().Volume()
+    v_abs = pv.Volume() - v_rain
+    l_fil = ARM.longueur()
+    m_fil = math.pi * (ARM.d / 2) ** 2 * l_fil / 1000 * DENS["inox"]
+    gx = sum((a[0] + b[0]) / 2 * math.dist(a, b) for a, b in zip(ARM.pts, ARM.pts[1:])) / l_fil
+    gy = sum((a[1] + b[1]) / 2 * math.dist(a, b) for a, b in zip(ARM.pts, ARM.pts[1:])) / l_fil
+    lo, hi = P["assiette_cible"]
+    meilleur = None
+    pos = list(pos_tous)
+    while pos:
+        m_abs = (v_abs - len(pos) * v_puits) / 1000 * DENS["ABS"]
+        ms = [(m_abs, cb.x, cb.y), (m_fil, gx, gy)] + hamecons()
+        ms += [(vb * DENS[P["bille_mat"]], x, y) for x, y in pos]
+        mt = sum(m for m, _, _ in ms)
+        xcg = sum(m * x for m, x, _ in ms) / mt
+        ycg = sum(m * y for m, _, y in ms) / mt
+        ang = math.degrees(math.atan2(cb.x - xcg, cb.y - ycg))
+        if meilleur is None or abs(ang - (lo + hi) / 2) < abs(meilleur[1] - (lo + hi) / 2):
+            meilleur = (list(pos), ang)
+        if lo <= ang <= hi:
+            return list(pos), ang
+        if ang > hi:      # trop piqueur : impossible d'améliorer en retirant à l'arrière
+            break
+        pos.pop()         # retire le puits le plus en arrière
+    return meilleur
+
+
 def construire():
     body = corps()
     lip, geo = bavette()
@@ -334,11 +413,12 @@ def construire():
     plein = body.union(lip).union(gus)
     plein = oeils(plein)
     rain, hz = rainure_fil()
-    pos = positions_billes()
+    pos_tous = positions_billes()
+    pos, ang = equilibrer(plein, rain, pos_tous)
     puits = puits_billes(pos)
     piece = plein.cut(rain).cut(puits)
     return dict(plein=plein, piece=piece, rain=rain, hz=hz, pos=pos, puits=puits,
-                lip=lip, gus=gus, info_c=info_c)
+                lip=lip, gus=gus, info_c=info_c, pos_tous=pos_tous, assiette=ang)
 
 
 def fil_solide():
@@ -419,7 +499,7 @@ def exporter(r):
         pause2_billes=round(z_mid + puits_haut(), 2),
         hauteur_totale=round(z_mid + r["plein"].val().BoundingBox().zmax, 2),
     )
-    rapport = dict(pauses=pauses, bilan=b, billes=r["pos"], conge=dict(
+    rapport = dict(pauses=pauses, bilan=b, billes=r["pos"], puits_possibles=r["pos_tous"], conge=dict(
         rayon=round(r["info_c"]["R"], 1)), armature=ARM.reperes, parametres=P)
     with open(os.path.join(OUT, "rapport.json"), "w") as f:
         json.dump(rapport, f, indent=2, ensure_ascii=False, default=str)

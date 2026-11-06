@@ -1,111 +1,177 @@
 {
   "pauses": {
     "z_plan_median": 8.8,
-    "pause1_fil": 9.6,
+    "pause1_fil": 9.8,
     "pause2_billes": 11.6,
     "hauteur_totale": 14.41
   },
   "bilan": {
-    "volume_ext_cm3": 10.51,
-    "masse_abs_g": 9.67,
-    "longueur_fil_mm": 161.6,
-    "masse_fil_g": 1.0,
-    "n_billes": 9,
+    "volume_ext_cm3": 10.5,
+    "masse_abs_g": 9.65,
+    "longueur_fil_mm": 169.3,
+    "masse_fil_g": 2.69,
+    "n_billes": 7,
     "centre_carene": [
-      44.6,
-      1.95
+      44.7,
+      1.96
     ],
     "poussee_g": 10.5,
+    "hamecons_g": 1.8,
     "materiaux": {
       "tungstene": {
-        "masse_billes_g": 11.2,
-        "masse_totale_g": 21.9,
+        "masse_billes_g": 8.7,
+        "masse_totale_g": 21.0,
         "cg": [
-          43.6,
-          0.75
+          42.21,
+          0.96
         ],
-        "gb_mm": 1.21
+        "gb_mm": 0.99,
+        "dx_mm": 2.47,
+        "assiette_deg": 68.1
+      },
+      "tungstene_avec_hamecons": {
+        "masse_billes_g": 8.7,
+        "masse_totale_g": 22.8,
+        "cg": [
+          44.62,
+          -0.01
+        ],
+        "gb_mm": 1.96,
+        "dx_mm": 0.05,
+        "assiette_deg": 1.5
       },
       "plomb": {
-        "masse_billes_g": 6.7,
-        "masse_totale_g": 17.3,
+        "masse_billes_g": 5.2,
+        "masse_totale_g": 17.5,
         "cg": [
-          43.9,
-          0.99
+          43.39,
+          1.21
         ],
-        "gb_mm": 0.96
+        "gb_mm": 0.75,
+        "dx_mm": 1.28,
+        "assiette_deg": 59.8
+      },
+      "plomb_avec_hamecons": {
+        "masse_billes_g": 5.2,
+        "masse_totale_g": 19.3,
+        "cg": [
+          46.14,
+          0.04
+        ],
+        "gb_mm": 1.92,
+        "dx_mm": -1.47,
+        "assiette_deg": -37.4
       },
       "acier": {
-        "masse_billes_g": 4.6,
-        "masse_totale_g": 15.3,
+        "masse_billes_g": 3.6,
+        "masse_totale_g": 15.9,
         "cg": [
-          44.1,
-          1.15
+          44.09,
+          1.35
         ],
-        "gb_mm": 0.81
+        "gb_mm": 0.6,
+        "dx_mm": 0.58,
+        "assiette_deg": 44.0
+      },
+      "acier_avec_hamecons": {
+        "masse_billes_g": 3.6,
+        "masse_totale_g": 17.7,
+        "cg": [
+          47.01,
+          0.07
+        ],
+        "gb_mm": 1.89,
+        "dx_mm": -2.34,
+        "assiette_deg": -51.1
       }
     }
   },
   "billes": [
     [
-      13.0,
-      -0.24
+      13.75,
+      -0.33
     ],
     [
-      19.0,
-      -0.24
+      19.75,
+      -0.21
     ],
     [
-      25.0,
+      25.75,
       -0.1
     ],
     [
-      39.0,
-      -0.28
-    ],
-    [
-      45.0,
+      39.75,
       -0.3
     ],
     [
-      51.0,
-      -0.32
+      45.75,
+      -0.31
     ],
     [
-      57.0,
-      -0.24
+      51.75,
+      -0.33
     ],
     [
-      63.0,
-      -0.11
+      57.75,
+      -0.25
+    ]
+  ],
+  "puits_possibles": [
+    [
+      13.75,
+      -0.33
     ],
     [
-      69.0,
-      0.16
+      19.75,
+      -0.21
+    ],
+    [
+      25.75,
+      -0.1
+    ],
+    [
+      39.75,
+      -0.3
+    ],
+    [
+      45.75,
+      -0.31
+    ],
+    [
+      51.75,
+      -0.33
+    ],
+    [
+      57.75,
+      -0.25
+    ],
+    [
+      63.75,
+      -0.12
     ]
   ],
   "conge": {
-    "rayon": 11.8
+    "rayon": 12.2
   },
   "armature": {
-    "xc_n": -1.55,
-    "yc_n": 0.3,
-    "r_n": 1.75,
-    "xc_q": 106.14066250481815,
+    "xc_n": -1.8,
+    "yc_n": 0.0,
+    "r_n": 2.3,
+    "xc_q": 107.44676463626799,
     "yc_q": -2.4,
-    "r_q": 1.75,
+    "r_q": 2.3,
     "xv": 33.0,
     "y_bas_v": -5.76,
-    "r_v": 2.0,
+    "r_v": 2.3,
     "ys": 4.2
   },
   "parametres": {
     "bav_angle": 40.0,
     "bav_sortie": [
-      2.2,
-      -3.3
+      2.4,
+      -3.5
     ],
-    "bav_noyee": 2.0,
+    "bav_noyee": 1.2,
     "bav_longueur": 14.8,
     "bav_larg_racine": 6.0,
     "bav_larg_max": 11.0,
@@ -123,6 +189,12 @@
     "paroi": 0.6,
     "paroi_ext": 0.8,
     "fil_jeu": 0.15,
+    "hamecon_g": 0.9,
+    "bille_mat": "tungstene",
+    "assiette_cible": [
+      0.0,
+      10.0
+    ],
     "couche": 0.2,
     "z_mini": 3.0,
     "sup_jeu_z": 0.25,

@@ -1,9 +1,8 @@
 // Construction du modèle 3D affiché (corps peint, bavette, yeux, quincaillerie).
 import * as THREE from 'three';
 import {
-  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal,
+  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal, buildPaddleSoup, smoothGeometry, ringSpec,
 } from './geometry.js';
-import { HOOK_SIZES } from './design.js';
 
 const metal = new THREE.MeshStandardMaterial({ color: 0xc7ccd3, metalness: 1, roughness: 0.22 });
 const darkMetal = new THREE.MeshStandardMaterial({ color: 0x3a3d44, metalness: 1, roughness: 0.32 });
@@ -72,42 +71,68 @@ function splitRing(radius, wire, mat = metal) {
   return grp;
 }
 
-export function makeTreble(size, mat = metal) {
-  const hs = HOOK_SIZES[size] || HOOK_SIZES[4];
-  const len = hs.len;
-  const wire = Math.max(0.32, len * 0.032);
-  const gap = len * 0.36;
+function hookCurve(len, gap, shankBot, shankTop, single = false) {
+  const r = gap / 2;
+  const pts = [new THREE.Vector3(0, shankTop, 0), new THREE.Vector3(0, shankBot, 0)];
+  for (let k = 1; k <= 10; k++) {
+    const a = Math.PI + (k / 10) * Math.PI;
+    pts.push(new THREE.Vector3(r + Math.cos(a) * r, shankBot + Math.sin(a) * r, 0));
+  }
+  pts.push(new THREE.Vector3(gap * 0.98, shankBot + len * (single ? 0.22 : 0.18), 0));
+  pts.push(new THREE.Vector3(gap * 0.8, shankBot + len * (single ? 0.4 : 0.32), 0));
+  return new THREE.CatmullRomCurve3(pts);
+}
+
+// Triple : spec = { len, gap }
+export function makeTreble(spec, mat = metal) {
+  const len = spec.len, gap = spec.gap;
+  const wire = Math.max(0.32, len * 0.034);
   const grp = new THREE.Group();
   const eyeR = wire * 2.3;
   const eye = new THREE.Mesh(new THREE.TorusGeometry(eyeR, wire, 8, 24), mat);
   eye.rotation.y = Math.PI / 2;
   eye.position.y = -eyeR;
   grp.add(eye);
-  const shankTop = -eyeR * 2, shankBot = -len * 0.78;
-  const shank = new THREE.Mesh(new THREE.CylinderGeometry(wire * 1.35, wire * 1.35, shankTop - shankBot, 10), mat);
+  const shankTop = -eyeR * 2, shankBot = -len * 0.8;
+  const shank = new THREE.Mesh(new THREE.CylinderGeometry(wire * 1.4, wire * 1.4, shankTop - shankBot, 10), mat);
   shank.position.y = (shankTop + shankBot) / 2;
   grp.add(shank);
-  const r = gap / 2;
-  const pts = [new THREE.Vector3(0, shankTop - len * 0.2, 0), new THREE.Vector3(0, shankBot, 0)];
-  for (let k = 1; k <= 8; k++) {
-    const a = Math.PI + (k / 8) * Math.PI;
-    pts.push(new THREE.Vector3(r + Math.cos(a) * r, shankBot + Math.sin(a) * r, 0));
-  }
-  pts.push(new THREE.Vector3(gap * 0.98, shankBot + len * 0.18, 0));
-  pts.push(new THREE.Vector3(gap * 0.86, shankBot + len * 0.32, 0));
-  const curve = new THREE.CatmullRomCurve3(pts);
-  const hookGeo = new THREE.TubeGeometry(curve, 40, wire, 6, false);
+  const hookGeo = new THREE.TubeGeometry(hookCurve(len, gap, shankBot, shankTop - len * 0.15), 44, wire, 7, false);
   const barbGeo = new THREE.ConeGeometry(wire * 1.6, len * 0.09, 8);
   for (let i = 0; i < 3; i++) {
     const h = new THREE.Mesh(hookGeo, mat);
     const barb = new THREE.Mesh(barbGeo, mat);
-    barb.position.set(gap * 0.84, shankBot + len * 0.33, 0);
-    barb.rotation.z = 0.25;
+    barb.position.set(gap * 0.78, shankBot + len * 0.33, 0);
+    barb.rotation.z = 0.35;
     const arm = new THREE.Group();
     arm.add(h, barb);
     arm.rotation.y = (i / 3) * Math.PI * 2 + Math.PI / 6;
     grp.add(arm);
   }
+  grp.userData.length = len;
+  return grp;
+}
+
+// Simple (type « Lone Diablo ») : œillet en haut, pointe vers l'avant
+export function makeSingle(spec, mat = metal) {
+  const len = spec.len, gap = spec.gap;
+  const wire = Math.max(0.45, len * 0.045);
+  const grp = new THREE.Group();
+  const eyeR = wire * 2.4;
+  const eye = new THREE.Mesh(new THREE.TorusGeometry(eyeR, wire, 8, 24), mat);
+  eye.rotation.y = Math.PI / 2;
+  eye.position.y = -eyeR;
+  grp.add(eye);
+  const shankTop = -eyeR * 2, shankBot = -len * 0.82;
+  const geo = new THREE.TubeGeometry(hookCurve(len, gap, shankBot, shankTop, true), 48, wire, 8, false);
+  const h = new THREE.Mesh(geo, mat);
+  const barb = new THREE.Mesh(new THREE.ConeGeometry(wire * 1.5, len * 0.1, 8), mat);
+  barb.position.set(gap * 0.78, shankBot + len * 0.4, 0);
+  barb.rotation.z = 0.4;
+  const arm = new THREE.Group();
+  arm.add(h, barb);
+  arm.rotation.y = -Math.PI / 2; // pointe tournée vers l'avant du leurre
+  grp.add(arm);
   grp.userData.length = len;
   return grp;
 }
@@ -123,13 +148,79 @@ export function makeBodyMaterial(design, texture) {
   });
 }
 
+// Jupe de traîne : lanières de vinyle animées
+function buildSkirt(design, P) {
+  const sk = design.features.skirt;
+  const grp = new THREE.Group();
+  const n = Math.max(6, Math.min(64, Math.round(sk.strands)));
+  const seg = 18;
+  const len = Math.max(20, sk.length);
+  const x0 = P.L - 3;
+  const yc = (P.top(0.96) - P.bot(0.96)) / 2;
+  const r0 = Math.max(3, Math.min(P.top(0.96), P.hw(0.96)) * 0.9);
+  const strands = [];
+  const mats = [
+    new THREE.MeshPhysicalMaterial({ color: sk.color1, roughness: 0.35, side: THREE.DoubleSide, transparent: true, opacity: 0.88, sheen: 0.6 }),
+    new THREE.MeshPhysicalMaterial({ color: sk.color2, roughness: 0.35, side: THREE.DoubleSide, transparent: true, opacity: 0.88, sheen: 0.6 }),
+    new THREE.MeshPhysicalMaterial({ color: 0xdfe8ee, roughness: 0.15, metalness: 0.9, side: THREE.DoubleSide, iridescence: 1 }),
+  ];
+  for (let k = 0; k < n; k++) {
+    const phi = (k / n) * Math.PI * 2 + (k % 2) * 0.07;
+    const g = new THREE.BufferGeometry();
+    const pos = new Float32Array((seg + 1) * 2 * 3);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const idx = [];
+    for (let i = 0; i < seg; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    g.setIndex(idx);
+    const mesh = new THREE.Mesh(g, mats[k % 7 === 3 ? 2 : k % 2]);
+    mesh.frustumCulled = false;
+    grp.add(mesh);
+    strands.push({ mesh, phi, w: 3.6 + (k % 3) * 0.6, len: len * (0.9 + ((k * 37) % 10) / 50), seed: k * 1.7 });
+  }
+  const update = (t, speed = 0) => {
+    const spread = 0.06 + 0.25 / (1 + speed * 2);
+    for (const st of strands) {
+      const pos = st.mesh.geometry.attributes.position.array;
+      const cy = Math.cos(st.phi), sz = Math.sin(st.phi);
+      for (let i = 0; i <= seg; i++) {
+        const s = i / seg;
+        const wave = Math.sin(t * (6 + speed * 6) - s * 7 + st.seed) * s * (2 + 4 / (1 + speed));
+        const droop = -s * s * st.len * 0.12 / (1 + speed * 3);
+        const rr = r0 + s * st.len * spread;
+        const x = x0 + s * st.len;
+        const y = yc + cy * rr + droop + wave * -sz * 0.6;
+        const z = sz * rr + wave * cy * 0.6;
+        const hw = st.w / 2 * (1 - s * 0.4);
+        pos.set([x, y - sz * hw, z + cy * hw], i * 6);
+        pos.set([x, y + sz * hw, z - cy * hw], i * 6 + 3);
+      }
+      st.mesh.geometry.attributes.position.needsUpdate = true;
+      st.mesh.geometry.computeVertexNormals();
+    }
+  };
+  update(0, 0);
+  grp.userData.update = update;
+  grp.name = 'skirt';
+  return grp;
+}
+
 export function buildLure(design, texture, opts = {}) {
   const { hardware = true, simpleLip = false } = opts;
   const group = new THREE.Group();
   group.name = 'lure';
   const P = makeProfile(design);
   const bodyGeo = buildBodyGeometry(design, opts.nu || 150, opts.nt || 112);
-  const body = new THREE.Mesh(bodyGeo, makeBodyMaterial(design, texture));
+  const bodyMat = makeBodyMaterial(design, texture);
+  if (opts.foil) {
+    bodyMat.metalnessMap = opts.foil;
+    bodyMat.roughnessMap = opts.foil;
+    bodyMat.iridescenceMap = opts.foil;
+    bodyMat.iridescence = 1;
+    bodyMat.iridescenceIOR = 1.6;
+    bodyMat.metalness = design.finish?.metalness ?? 0.9;
+    bodyMat.roughness = Math.max(0.02, design.finish?.roughness ?? 0.2);
+  }
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.name = 'body';
   body.castShadow = true;
   group.add(body);
@@ -138,12 +229,30 @@ export function buildLure(design, texture, opts = {}) {
     const lipGeo = buildLipGeometry(design);
     const lipMat = design.lip.clear
       ? (simpleLip
-        ? new THREE.MeshPhysicalMaterial({ color: 0xeef6ff, roughness: 0.05, transparent: true, opacity: 0.45, clearcoat: 1 })
-        : new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transmission: 0.92, thickness: design.lip.thickness, ior: 1.58, clearcoat: 1, transparent: true }))
+        ? new THREE.MeshPhysicalMaterial({ color: 0xeef6ff, roughness: 0.05, transparent: true, opacity: 0.5, clearcoat: 1 })
+        : new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transmission: 0.9, thickness: design.lip.thickness * 2, ior: 1.58, clearcoat: 1, transparent: true }))
       : new THREE.MeshPhysicalMaterial({ color: design.lip.color, roughness: 0.25, clearcoat: 1 });
     const lip = new THREE.Mesh(lipGeo, lipMat);
     lip.name = 'lip';
     group.add(lip);
+  }
+
+  let paddle = null;
+  const padSoup = buildPaddleSoup(design);
+  if (padSoup) {
+    const g = smoothGeometry(padSoup);
+    const pivotX = P.L - 2;
+    g.translate(-pivotX, 0, 0);
+    paddle = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color: design.features.paddle.color || '#c9d2d6', roughness: 0.45, clearcoat: 0.3 }));
+    paddle.position.x = pivotX;
+    paddle.name = 'paddle';
+    group.add(paddle);
+  }
+
+  let skirt = null;
+  if (design.features?.skirt?.enabled) {
+    skirt = buildSkirt(design, P);
+    group.add(skirt);
   }
 
   if (design.eyes.enabled) {
@@ -152,7 +261,7 @@ export function buildLure(design, texture, opts = {}) {
     const mat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(design.eyes.iris, design.eyes.pupil), roughness: 0.1, clearcoat: 1 });
     for (const sgn of [1, -1]) {
       const th = sgn > 0 ? design.eyes.theta : Math.PI * 2 - design.eyes.theta;
-      const { p, n } = surfaceNormal(P, Math.max(0.03, Math.min(0.5, design.eyes.u)), th);
+      const { p, n } = surfaceNormal(P, Math.max(0.03, Math.min(0.6, design.eyes.u)), th);
       const eye = new THREE.Mesh(geo, mat);
       eye.position.copy(p).addScaledVector(n, -r * 0.08);
       eye.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
@@ -163,38 +272,46 @@ export function buildLure(design, texture, opts = {}) {
 
   const hookPivots = [];
   if (hardware) {
+    const rs = ringSpec(design);
     const tie = lineTiePoint(design);
-    const ringR = 2.2;
-    const tieRing = splitRing(ringR, 0.32);
+    const ringR = rs.dia / 2;
+    const tieRing = splitRing(ringR, rs.wire / 2);
     tieRing.position.copy(tie.point).addScaledVector(tie.axis, ringR * 0.8);
     tieRing.rotation.z = Math.atan2(tie.axis.y, tie.axis.x) - Math.PI / 2;
     group.add(tieRing);
-    const eyelet = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.35, 8, 20), metal);
+    const eyelet = new THREE.Mesh(new THREE.TorusGeometry(Math.max(1.1, rs.dia * 0.16), Math.max(0.35, rs.wire * 0.45), 8, 20), metal);
     eyelet.position.copy(tie.point);
     group.add(eyelet);
 
     for (const h of hangerPoints(design)) {
-      const hs = HOOK_SIZES[h.size] || HOOK_SIZES[4];
       const pivot = new THREE.Group();
       pivot.position.copy(h.point);
-      const screw = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.33, 8, 20), metal);
+      const screw = new THREE.Mesh(new THREE.TorusGeometry(Math.max(1, rs.dia * 0.15), Math.max(0.33, rs.wire * 0.4), 8, 20), metal);
       screw.position.y = h.kind === 'tail' ? 0 : 0.2;
       if (h.kind === 'tail') screw.rotation.z = Math.PI / 2;
       pivot.add(screw);
-      const rr = hs.ring / 2;
-      const ring = splitRing(rr, Math.max(0.25, rr * 0.12));
-      ring.position.set(h.kind === 'tail' ? rr : 0, h.kind === 'tail' ? 0 : -rr, -0.25);
+      const rr = rs.dia / 2;
+      const trail = h.kind === 'tail' ? (h.trail || 0) : 0;
+      if (trail > 0) {
+        // bas de ligne rigide (câble) entre la tête et l'hameçon
+        const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, trail, 8), metal);
+        cable.rotation.z = Math.PI / 2;
+        cable.position.x = trail / 2;
+        pivot.add(cable);
+      }
+      const ring = splitRing(rr, rs.wire / 2);
+      ring.position.set(h.kind === 'tail' ? rr + trail : 0, h.kind === 'tail' ? 0 : -rr, -0.25);
       ring.rotation.y = Math.PI / 2;
       pivot.add(ring);
-      const treble = makeTreble(h.size, opts.blackHooks ? darkMetal : metal);
-      treble.position.set(h.kind === 'tail' ? rr * 2 : 0, h.kind === 'tail' ? 0 : -rr * 2, 0);
-      pivot.add(treble);
+      const hookMesh = h.type === 'single' ? makeSingle(h.spec, opts.blackHooks ? darkMetal : metal) : makeTreble(h.spec, opts.blackHooks ? darkMetal : metal);
+      hookMesh.position.set(h.kind === 'tail' ? rr * 2 + trail : 0, h.kind === 'tail' ? 0 : -rr * 2, 0);
+      pivot.add(hookMesh);
       pivot.userData.kind = h.kind;
       hookPivots.push(pivot);
       group.add(pivot);
     }
   }
-  group.userData = { body, hookPivots, profile: P };
+  group.userData = { body, hookPivots, profile: P, skirt, paddle };
   return group;
 }
 

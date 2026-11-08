@@ -4,7 +4,7 @@ import { Studio } from './studio.js';
 import { Painter, SCHEMES } from './paint.js';
 import { SwimView } from './swim.js';
 import { CFDLab } from './cfd.js';
-import { computeMassProps } from './physics.js';
+import { computeMassProps, autoHardware } from './physics.js';
 import { state, on, emit, updateDesign, replaceDesign, undo, redo, canUndo, canRedo, resetHistory } from './store.js';
 import { presetDesign, normalizeDesign, PRESETS } from './design.js';
 import { h, icon, toast, modal, button } from './ui.js';
@@ -109,13 +109,16 @@ function computeProps() {
 let lureDirty = true, propsTimer = null, swimDirty = true;
 function rebuildLure() {
   painter.setDesign(state.design);
-  studio.setLure(state.design, painter.texture);
+  studio.setLure(state.design, painter);
   if (app.massProps) studio.setMarkers(app.massProps.cg, app.massProps.cb);
   lureDirty = false;
   swimDirty = true;
 }
 
 function refreshStats() {
+  try {
+    if (state.design.hooks.auto && autoHardware(state.design, state.water)) { lureDirty = true; swimDirty = true; }
+  } catch (e) { console.error(e); }
   computeProps();
   studio.setMarkers(app.massProps.cg, app.massProps.cb);
   current?.onStats?.(app);
@@ -170,7 +173,7 @@ function rerender() {
   if (!app.massProps) computeProps();
   if (id === 'swim' && swimDirty) {
     if (lureDirty) rebuildLure();
-    swim.setDesign(state.design, painter.texture, app.massProps);
+    swim.setDesign(state.design, painter, app.massProps);
     swim.restart();
     swimDirty = false;
   }
@@ -205,7 +208,7 @@ function loop(now) {
   if (tab === 'swim') {
     if (swimDirty) {
       if (lureDirty) rebuildLure();
-      swim.setDesign(state.design, painter.texture, app.massProps || computeProps());
+      swim.setDesign(state.design, painter, app.massProps || computeProps());
       swimDirty = false;
     }
     swim.update(dt);
@@ -240,7 +243,7 @@ function thumbnail() {
 async function saveCurrent(notify) {
   if (!state.projectId) state.projectId = newId();
   try {
-    await saveProject({ id: state.projectId, name: state.design.name, design: state.design, paint: painter.toDataURL(), thumb: thumbnail() });
+    await saveProject({ id: state.projectId, name: state.design.name, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL(), thumb: thumbnail() });
     try { localStorage.setItem('dmf.current', state.projectId); } catch { /* ignore */ }
     state.dirty = false;
     if (notify) toast(T('Leurre enregistré ✓', 'Lure saved ✓'));
@@ -259,7 +262,8 @@ async function openProject(id) {
   resetHistory();
   nameInput.value = state.design.name;
   lureDirty = true;
-  if (!(await painter.loadDataURL(p.paint))) painter.applyScheme(state.design.paintPreset || 'chromeShad');
+  if (!(await painter.loadDataURL(p.paint))) painter.applyScheme(state.design.paintPreset || 'sardineHolo');
+  else await painter.loadFoilDataURL(p.foil);
   painter.undoStack.length = 0;
   painter.redoStack.length = 0;
   try { localStorage.setItem('dmf.current', p.id); } catch { /* ignore */ }
@@ -355,7 +359,7 @@ function importJson(done) {
       replaceDesign(design);
       nameInput.value = design.name;
       lureDirty = true;
-      if (data.paint) await painter.loadDataURL(data.paint); else painter.applyScheme(design.paintPreset || 'chromeShad');
+      if (data.paint) { await painter.loadDataURL(data.paint); await painter.loadFoilDataURL(data.foil); } else painter.applyScheme(design.paintPreset || 'sardineHolo');
       toast(T('Projet importé ✓', 'Project imported ✓'));
       done && done();
     } catch (e) {
@@ -368,7 +372,7 @@ function importJson(done) {
 app.importJson = importJson;
 
 app.exportJson = () => {
-  const data = { app: 'DMF Lure Studio', format: 1, design: state.design, paint: painter.toDataURL() };
+  const data = { app: 'DMF Lure Studio', format: 2, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL() };
   downloadBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `${fileSafe(state.design.name)}.design.json`);
 };
 export const fileSafe = (s) => (s || 'leurre').replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'leurre';

@@ -40,7 +40,40 @@ export class Painter {
     this.L = 60;
     this.onChange = null;
     this.stencils = {};
+    // Couche « feuille holographique » : R = irisation, G = rugosité, B = métal (lue par le matériau 3D)
+    this.fcanvas = document.createElement('canvas');
+    this.fcanvas.width = TEX_W;
+    this.fcanvas.height = TEX_H;
+    this.fctx = this.fcanvas.getContext('2d', { willReadFrequently: true });
+    this.foilTexture = new THREE.CanvasTexture(this.fcanvas);
+    this.foilTexture.flipY = false;
+    this.foilTexture.wrapT = THREE.RepeatWrapping;
+    this.foilTexture.colorSpace = THREE.NoColorSpace;
+    this.resetFoil();
     this.fill('#f2efe6');
+  }
+
+  resetFoil() {
+    this.fctx.globalAlpha = 1;
+    this.fctx.fillStyle = 'rgb(0,255,0)';
+    this.fctx.fillRect(0, 0, TEX_W, TEX_H);
+  }
+
+  // Bande de feuille holo entre f0 (dos=0) et f1 (ventre=1)
+  foilBand(f0, f1, alpha = 1, soft = 0.05, u0 = 0, u1 = 1) {
+    const g = this.fctx;
+    for (let y = 0; y < TEX_H; y++) {
+      const f = Painter.fOfY(y + 0.5);
+      const a = smooth(f0 - soft, f0 + soft, f) * (1 - smooth(f1 - soft, f1 + soft, f)) * alpha;
+      if (a <= 0.003) continue;
+      g.fillStyle = `rgba(255,60,255,${a})`;
+      g.fillRect(u0 * TEX_W, y, (u1 - u0) * TEX_W, 1);
+    }
+  }
+
+  foilScales(f0 = 0.12, f1 = 0.7) {
+    const g = this.fctx;
+    this.drawScales(g, { color: 'rgb(30,190,40)', size: Math.max(2.4, this.L / 40), line: 0.3, alpha: 0.9, f0, f1 });
   }
 
   setDesign(design) {
@@ -57,27 +90,29 @@ export class Painter {
 
   changed() {
     this.texture.needsUpdate = true;
+    this.foilTexture.needsUpdate = true;
     if (this.onChange) this.onChange();
   }
 
   /* ------------------------- historique ------------------------- */
+  grab() { return { c: this.ctx.getImageData(0, 0, TEX_W, TEX_H), f: this.fctx.getImageData(0, 0, TEX_W, TEX_H) }; }
+  put(s) { this.ctx.putImageData(s.c, 0, 0); this.fctx.putImageData(s.f, 0, 0); }
   snapshot() {
-    const img = this.ctx.getImageData(0, 0, TEX_W, TEX_H);
-    this.undoStack.push(img);
-    if (this.undoStack.length > 24) this.undoStack.shift();
+    this.undoStack.push(this.grab());
+    if (this.undoStack.length > 16) this.undoStack.shift();
     this.redoStack.length = 0;
   }
   undo() {
     if (!this.undoStack.length) return false;
-    this.redoStack.push(this.ctx.getImageData(0, 0, TEX_W, TEX_H));
-    this.ctx.putImageData(this.undoStack.pop(), 0, 0);
+    this.redoStack.push(this.grab());
+    this.put(this.undoStack.pop());
     this.changed();
     return true;
   }
   redo() {
     if (!this.redoStack.length) return false;
-    this.undoStack.push(this.ctx.getImageData(0, 0, TEX_W, TEX_H));
-    this.ctx.putImageData(this.redoStack.pop(), 0, 0);
+    this.undoStack.push(this.grab());
+    this.put(this.redoStack.pop());
     this.changed();
     return true;
   }
@@ -110,9 +145,12 @@ export class Painter {
     if (b.mirror) targets.push([x, TEX_H - y]);
     const g = this.tctx;
     const erase = b.tool === 'eraser';
+    const foil = b.tool === 'foil' || b.tool === 'unfoil';
     const color = erase ? this.baseColor || '#f2efe6' : b.color;
-    const [R, G, B] = hexToRgb(color);
-    const alpha = b.opacity * pressure * (b.tool === 'airbrush' ? 0.35 : 1);
+    let [R, G, B] = hexToRgb(color);
+    if (b.tool === 'foil') [R, G, B] = [255, 60, 255];
+    if (b.tool === 'unfoil') [R, G, B] = [0, 255, 0];
+    const alpha = b.opacity * pressure * (b.tool === 'airbrush' || foil ? 0.35 : 1);
     const hard = b.tool === 'brush' || erase ? Math.max(0.6, b.hardness) : b.hardness;
     g.clearRect(0, 0, TEX_W, TEX_H);
     for (const [px, py] of targets) {
@@ -132,13 +170,13 @@ export class Painter {
         g.restore();
       }
     }
-    if (b.stencil !== 'none' && !erase) {
+    if (b.stencil !== 'none' && !erase && b.tool !== 'unfoil') {
       g.globalCompositeOperation = 'destination-in';
       g.drawImage(this.stencilCanvas(b.stencil), 0, 0);
       g.globalCompositeOperation = 'source-over';
     }
     const minX = Math.max(0, Math.floor(x - rx - 2)), w = Math.min(TEX_W, Math.ceil(x + rx + 2)) - minX;
-    if (w > 0) this.ctx.drawImage(this.tmp, minX, 0, w, TEX_H, minX, 0, w, TEX_H);
+    if (w > 0) (foil ? this.fctx : this.ctx).drawImage(this.tmp, minX, 0, w, TEX_H, minX, 0, w, TEX_H);
   }
 
   strokeTo(x, y, last) {
@@ -389,8 +427,23 @@ export class Painter {
   applyScheme(id) {
     const s = SCHEMES.find((x) => x.id === id);
     if (!s) return;
+    this.resetFoil();
     s.paint(this);
     this.changed();
+  }
+
+  foilDataURL() {
+    try { return this.fcanvas.toDataURL('image/webp', 0.9); } catch { return this.fcanvas.toDataURL('image/png'); }
+  }
+
+  loadFoilDataURL(url) {
+    return new Promise((resolve) => {
+      if (!url) { this.resetFoil(); this.changed(); resolve(false); return; }
+      const img = new Image();
+      img.onload = () => { this.fctx.drawImage(img, 0, 0, TEX_W, TEX_H); this.changed(); resolve(true); };
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
   }
 
   toDataURL() {
@@ -408,7 +461,166 @@ export class Painter {
   }
 }
 
+// Rayures ondulées type maquereau sur le dos
+function mackerelLines(p, color, count = 16, seed = 3) {
+  const g = p.ctx;
+  const r = rng(seed);
+  g.save();
+  g.strokeStyle = color;
+  g.lineCap = 'round';
+  for (let k = 0; k < count; k++) {
+    const u = 0.14 + (0.8 * (k + r() * 0.5)) / count;
+    const { sx } = p.scaleAt(u);
+    g.lineWidth = sx * (0.9 + r() * 0.7);
+    for (const side of [1, -1]) {
+      g.beginPath();
+      for (let i = 0; i <= 20; i++) {
+        const f = (i / 20) * 0.34;
+        const th = Math.acos(1 - 2 * f);
+        const y = side > 0 ? (th / (Math.PI * 2)) * TEX_H : TEX_H - (th / (Math.PI * 2)) * TEX_H;
+        const x = u * TEX_W + Math.sin(i * 0.9 + k) * sx * 1.6 + i * sx * 0.25;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+  }
+  g.restore();
+}
+
+// Tache claire autour de l'œil (« face » blanche des stickbaits)
+function facePatch(p, color, u0 = 0.02, u1 = 0.2, f0 = 0.1, f1 = 0.85, alpha = 1) {
+  p.lengthwise(color, u0, u1, alpha, 0.03);
+  void f0; void f1;
+}
+
 export const SCHEMES = [
+  {
+    id: 'sardineHolo', name: { fr: 'Sardine holo', en: 'Holo sardine' },
+    swatch: ['#1d4f6e', '#c9d6dc', '#ffffff'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#173f5c'], [0.18, '#2f7f8f'], [0.32, '#b9c9cf'], [0.6, '#eef2f3'], [1, '#ffffff']]);
+      p.scales({ color: '#143447', size: 2.4, line: 0.3, alpha: 0.45, f0: 0, f1: 0.5 });
+      p.spots('#10232e', { count: 7, min: 1.2, max: 1.6, f0: 0.3, f1: 0.33, seed: 4 });
+      p.foilBand(0.18, 0.8, 1);
+      p.foilScales(0.15, 0.7);
+      p.gill('#d4263a', 0.12, 0.5);
+    },
+  },
+  {
+    id: 'orangeTroll', name: { fr: 'Orange / jaune (traîne)', en: 'Orange / yellow (troll)' },
+    swatch: ['#ff5a14', '#ffb21a', '#fff4b0'],
+    paint(p) {
+      p.fill('#fff4b0');
+      p.gradient([[0, '#ff4a10'], [0.25, '#ff7a14'], [0.45, '#ffb21a'], [0.75, '#ffe35a'], [1, '#fff4b0']]);
+      p.lengthwise('#ff3a0a', 0, 0.16, 0.6, 0.05);
+      p.foilBand(0.3, 0.75, 0.6);
+      p.scales({ color: '#d4560d', size: 2.6, line: 0.25, alpha: 0.35, f0: 0.05, f1: 0.55 });
+    },
+  },
+  {
+    id: 'redOrange', name: { fr: 'Rouge / orange flashy', en: 'Flashy red / orange' },
+    swatch: ['#ff3d14', '#ff8a2a', '#ffffff'],
+    paint(p) {
+      p.fill('#ffe0c8');
+      p.gradient([[0, '#e2280c'], [0.3, '#ff4a14'], [0.6, '#ff7a2a'], [0.85, '#ffb07a'], [1, '#ffe3cc']]);
+      facePatch(p, '#ffffff', 0.04, 0.17, 0, 1, 0.9);
+      p.band('#ffffff', 0.38, 0.52, 0.85, 0.03, 0.2, 0.9);
+      p.foilBand(0.38, 0.52, 1, 0.03, 0.2, 0.9);
+      p.gill('#b8160a', 0.17, 0.8);
+    },
+  },
+  {
+    id: 'chartreuseBlue', name: { fr: 'Chartreuse / bleu holo', en: 'Chartreuse / blue holo' },
+    swatch: ['#16a3a3', '#d9f24a', '#ffffff'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#0f6f8a'], [0.2, '#16a3a3'], [0.38, '#b8e6e0'], [0.65, '#f4fbf6'], [1, '#ffffff']]);
+      p.lengthwise('#d9f24a', 0, 0.2, 0.95, 0.04);
+      mackerelLines(p, 'rgba(10,60,90,0.55)', 14, 9);
+      p.foilBand(0.2, 0.8, 1);
+      p.foilScales(0.15, 0.75);
+    },
+  },
+  {
+    id: 'bonitoBlue', name: { fr: 'Bonite bleue', en: 'Blue bonito' },
+    swatch: ['#163a8a', '#9fb4d6', '#ffffff'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#0e2766'], [0.2, '#1d4fb0'], [0.35, '#8fa8d8'], [0.6, '#e6ecf5'], [1, '#ffffff']]);
+      p.lengthwise('#0b1c4a', 0, 0.12, 0.7, 0.04);
+      p.foilBand(0.2, 0.78, 1);
+      p.foilScales(0.15, 0.7);
+      for (let i = 0; i < 4; i++) p.band('#5a6d8c', 0.62 + i * 0.07, 0.64 + i * 0.07, 0.35, 0.01, 0.25, 0.85);
+    },
+  },
+  {
+    id: 'mackerel', name: { fr: 'Maquereau', en: 'Mackerel' },
+    swatch: ['#1e6a5c', '#111', '#e8eef0'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#1a5a55'], [0.2, '#2e8a7a'], [0.34, '#b8cdd0'], [0.6, '#eef3f4'], [1, '#ffffff']]);
+      mackerelLines(p, 'rgba(10,15,18,0.9)', 18, 5);
+      p.foilBand(0.3, 0.85, 1);
+    },
+  },
+  {
+    id: 'flyingFish', name: { fr: 'Poisson volant', en: 'Flying fish' },
+    swatch: ['#1f3c9c', '#7fb0e8', '#ffffff'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#162d78'], [0.25, '#2f5fc8'], [0.42, '#a8c8f0'], [0.65, '#f2f6fb'], [1, '#ffffff']]);
+      p.foilBand(0.25, 0.75, 0.8);
+      p.lateralLine('#1d3a8a', 0.4, 1.5);
+    },
+  },
+  {
+    id: 'pinkSardine', name: { fr: 'Sardine rose', en: 'Pink sardine' },
+    swatch: ['#e0368a', '#f6b8d6', '#ffffff'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#c21f72'], [0.22, '#ef4f9a'], [0.4, '#f6c0da'], [0.7, '#fbeef4'], [1, '#ffffff']]);
+      p.foilBand(0.25, 0.8, 1);
+      p.foilScales(0.2, 0.7);
+    },
+  },
+  {
+    id: 'redHead', name: { fr: 'Tête rouge', en: 'Red head' },
+    swatch: ['#d61a1a', '#ffffff', '#e8e8e8'],
+    paint(p) {
+      p.fill('#ffffff');
+      p.gradient([[0, '#f2f2f2'], [1, '#ffffff']]);
+      p.lengthwise('#d61a1a', 0, 0.24, 1, 0.03);
+      p.foilBand(0.2, 0.85, 0.8, 0.05, 0.22, 1);
+    },
+  },
+  {
+    id: 'skirtGreen', name: { fr: 'Tête chrome verte', en: 'Green chrome head' },
+    swatch: ['#1ea860', '#9df0b8', '#e9fff0'],
+    paint(p) {
+      p.fill('#d8ffe6');
+      p.gradient([[0, '#127a42'], [0.4, '#2ad07a'], [1, '#bff7d2']]);
+      p.foilBand(0, 1, 1, 0.01);
+    },
+  },
+  {
+    id: 'softGhost', name: { fr: 'Shad naturel (souple)', en: 'Natural shad (soft)' },
+    swatch: ['#5e6a4a', '#c8cfc4', '#f7f7f2'],
+    paint(p) {
+      p.fill('#f7f7f2');
+      p.gradient([[0, '#4a5638'], [0.22, '#7c8a62'], [0.4, '#c8cfc4'], [0.7, '#f1f2ec'], [1, '#fbfbf7']]);
+      p.glitter('#ffffff', 0.002, 7);
+      p.glitter('#c9a24a', 0.001, 9);
+    },
+  },
+  {
+    id: 'glow', name: { fr: 'Phosphorescent', en: 'Glow' },
+    swatch: ['#b8f5b0', '#effff0', '#ffffff'],
+    paint(p) {
+      p.fill('#f2fff2');
+      p.gradient([[0, '#9de89a'], [0.5, '#dcffd8'], [1, '#f7fff7']]);
+    },
+  },
   {
     id: 'firetiger', name: { fr: 'Firetiger', en: 'Firetiger' },
     swatch: ['#9be22d', '#ff6a1a', '#111'],
@@ -416,7 +628,6 @@ export const SCHEMES = [
       p.fill('#fff6d0');
       p.gradient([[0, '#3d8f1c'], [0.22, '#9be22d'], [0.5, '#d7f046'], [0.72, '#ffd24a'], [0.86, '#ff7b2a'], [1, '#ff5a1a']]);
       p.tigerBars('#141414', { count: 7, width: 3.4, depth: 0.6 });
-      p.lengthwise('#ff6a1a', 0, 0.12, 0.25, 0.06);
       p.gill('#e0283a', 0.17);
     },
   },
@@ -427,91 +638,7 @@ export const SCHEMES = [
       p.fill('#f4f4f2');
       p.gradient([[0, '#22262b'], [0.18, '#555b63'], [0.35, '#d9dde1'], [0.6, '#f6f6f4'], [1, '#ffffff']]);
       p.scales({ color: '#1f2226', size: 2.8, line: 0.5, alpha: 0.85, f0: 0.0, f1: 0.62 });
-      p.spots('#1b1d21', { count: 1, min: 1.6, max: 1.6, f0: 0.3, f1: 0.32 });
-      p.gill('#d4263a', 0.18, 0.6);
-    },
-  },
-  {
-    id: 'citrusShad', name: { fr: 'Citrus shad', en: 'Citrus shad' },
-    swatch: ['#2b5d7a', '#e8f03a', '#fff'],
-    paint(p) {
-      p.fill('#ffffff');
-      p.gradient([[0, '#1d4e6e'], [0.22, '#3f7b8f'], [0.36, '#d8ea4a'], [0.55, '#f2f5d8'], [1, '#ffffff']]);
-      p.scales({ color: '#163a52', size: 2.6, line: 0.35, alpha: 0.5, f0: 0, f1: 0.5 });
-      p.band('#ff8a2a', 0.85, 1.05, 0.55, 0.06, 0, 0.35);
-    },
-  },
-  {
-    id: 'sexyShad', name: { fr: 'Sexy shad', en: 'Sexy shad' },
-    swatch: ['#1c2d4a', '#cfd8e0', '#f4c430'],
-    paint(p) {
-      p.fill('#f7f7f5');
-      p.gradient([[0, '#141e33'], [0.16, '#2c4064'], [0.3, '#8e9fb4'], [0.5, '#e8ecef'], [1, '#ffffff']]);
-      p.band('#f4c430', 0.78, 1.05, 0.55, 0.08);
-      p.scales({ color: '#ffffff', size: 2.4, line: 0.3, alpha: 0.35, f0: 0.15, f1: 0.6 });
-      p.glitter('#ffffff', 0.0012);
-    },
-  },
-  {
-    id: 'chartreuseShad', name: { fr: 'Chartreuse shad', en: 'Chartreuse shad' },
-    swatch: ['#2d6a2a', '#d7ff38', '#ffffff'],
-    paint(p) {
-      p.fill('#ffffff');
-      p.gradient([[0, '#255d27'], [0.2, '#8bd12c'], [0.4, '#e2ff5a'], [0.65, '#f8ffe0'], [1, '#ffffff']]);
-      p.scales({ color: '#1e4a1c', size: 2.6, line: 0.35, alpha: 0.45, f0: 0, f1: 0.5 });
-      p.gill('#e0283a', 0.17, 0.8);
-    },
-  },
-  {
-    id: 'redCraw', name: { fr: 'Écrevisse rouge', en: 'Red craw' },
-    swatch: ['#6b1a12', '#d2442b', '#ff9a3a'],
-    paint(p) {
-      p.fill('#ffb070');
-      p.gradient([[0, '#3e0f0a'], [0.25, '#9a2618'], [0.5, '#d2442b'], [0.8, '#ff8a3a'], [1, '#ffc27a']]);
-      p.spots('#2a0a06', { count: 90, min: 0.5, max: 1.4, f0: 0.05, f1: 0.55, seed: 9 });
-      p.tigerBars('#4a120a', { count: 5, width: 2.4, depth: 0.5, alpha: 0.55, seed: 21 });
-    },
-  },
-  {
-    id: 'bluegill', name: { fr: 'Crapet', en: 'Bluegill' },
-    swatch: ['#28402a', '#6f8c3c', '#ff8a2a'],
-    paint(p) {
-      p.fill('#e9d27a');
-      p.gradient([[0, '#1d3420'], [0.25, '#4b6b33'], [0.5, '#8ea14a'], [0.75, '#ffb347'], [1, '#ff7f2a']]);
-      p.tigerBars('#1f2e1b', { count: 6, width: 3.2, depth: 0.6, alpha: 0.6, seed: 13 });
-      p.spots('#2f4bd6', { count: 1, min: 2.2, max: 2.2, f0: 0.32, f1: 0.33, seed: 2 });
-    },
-  },
-  {
-    id: 'perch', name: { fr: 'Perche', en: 'Perch' },
-    swatch: ['#3c4b1e', '#c8c45a', '#ff6a2a'],
-    paint(p) {
-      p.fill('#f5f0d8');
-      p.gradient([[0, '#2c3a17'], [0.25, '#7d8a33'], [0.48, '#d6cf6a'], [0.7, '#f3eed6'], [1, '#ffffff']]);
-      p.tigerBars('#263015', { count: 6, width: 3.6, depth: 0.55, alpha: 0.85, seed: 4 });
-      p.band('#ff6a2a', 0.86, 1.05, 0.4, 0.06);
-      p.gill('#d4263a', 0.18);
-    },
-  },
-  {
-    id: 'ghostMinnow', name: { fr: 'Ghost minnow', en: 'Ghost minnow' },
-    swatch: ['#8aa3a8', '#e9f0ee', '#d0b7e8'],
-    paint(p) {
-      p.fill('#f2f4f2');
-      p.gradient([[0, '#5f7b82'], [0.25, '#b9cbcc'], [0.45, '#e8efee'], [1, '#ffffff']]);
-      p.lateralLine('#b38fd8', 0.45, 2.2);
-      p.scales({ color: '#6f8a90', size: 2.2, line: 0.25, alpha: 0.35, f0: 0, f1: 0.55 });
-      p.glitter('#ffffff', 0.0018);
-    },
-  },
-  {
-    id: 'blackBlue', name: { fr: 'Noir & bleu', en: 'Black & blue' },
-    swatch: ['#0d0d10', '#1d3ab3', '#3a7bff'],
-    paint(p) {
-      p.fill('#111216');
-      p.gradient([[0, '#0a0a0c'], [0.4, '#16181e'], [1, '#1c2a6b']]);
-      p.glitter('#3a7bff', 0.004, 17);
-      p.tigerBars('#2a46d9', { count: 6, width: 1.6, depth: 0.45, alpha: 0.5, seed: 8 });
+      p.foilBand(0.25, 0.85, 1);
     },
   },
   {

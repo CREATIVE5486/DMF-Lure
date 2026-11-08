@@ -35,7 +35,9 @@ export function render(app) {
     toolBtn('brush', 'brush', T('Pinceau', 'Brush')),
     toolBtn('eraser', 'eraser', T('Gomme', 'Eraser')),
     toolBtn('picker', 'picker', T('Pipette', 'Eyedropper')),
-    toolBtn('text', 'text', T('Texte', 'Text')));
+    toolBtn('text', 'text', T('Texte', 'Text')),
+    toolBtn('foil', 'holo', T('Feuille holo', 'Holo foil')),
+    toolBtn('unfoil', 'eraser', T('Retirer holo', 'Remove holo')));
 
   const brushOpts = [
     h('div', { class: 'color-row' }, colorInput({ value: b.color, onChange: (c) => { b.color = c; } }), h('span', { class: 'muted' }, T('Couleur', 'Color'))),
@@ -82,7 +84,7 @@ export function render(app) {
 
   const finish = [
     slider({ label: T('Brillance', 'Gloss'), min: 0, max: 1, step: 0.02, value: 1 - d.finish.roughness, fmt: (v) => `${Math.round(v * 100)} %`, onInput: (v) => { updateDesign((dd) => { dd.finish.roughness = 1 - v; }, { source: 'finish' }); } }),
-    slider({ label: T('Métallisé (chrome)', 'Metallic (chrome)'), min: 0, max: 1, step: 0.02, value: d.finish.metalness, fmt: (v) => `${Math.round(v * 100)} %`, onInput: (v) => { updateDesign((dd) => { dd.finish.metalness = v; }, { source: 'finish' }); } }),
+    slider({ label: T('Intensité holo / chrome', 'Holo / chrome strength'), min: 0, max: 1, step: 0.02, value: d.finish.metalness, fmt: (v) => `${Math.round(v * 100)} %`, onInput: (v) => { updateDesign((dd) => { dd.finish.metalness = v; }, { source: 'finish' }); } }),
     slider({ label: T('Vernis époxy', 'Epoxy clear coat'), min: 0, max: 1, step: 0.05, value: d.finish.clearcoat, fmt: (v) => `${Math.round(v * 100)} %`, onInput: (v) => { updateDesign((dd) => { dd.finish.clearcoat = v; }, { source: 'finish' }); } }),
     h('div', { class: 'grad-row' },
       colorInput({ value: d.eyes.iris, label: T('Iris', 'Iris'), onChange: (c) => updateDesign((dd) => { dd.eyes.iris = c; }, { source: 'finish' }) }),
@@ -95,7 +97,8 @@ export function render(app) {
     h('div', { class: 'btn-row' },
       button(T('Annuler', 'Undo'), () => { p.undo(); app.updateHistoryButtons(); }, { cls: 'small', ic: 'undo' }),
       button(T('Rétablir', 'Redo'), () => { p.redo(); app.updateHistoryButtons(); }, { cls: 'small', ic: 'redo' })),
-    button(T('Remettre en blanc', 'Reset to white'), () => op(() => p.fill('#f2efe6')), { cls: 'small wide' }),
+    button(T('Remettre en blanc', 'Reset to white'), () => op(() => { p.fill('#f2efe6'); p.resetFoil(); }), { cls: 'small wide' }),
+    button(T('Holo sur les flancs', 'Holo on the sides'), () => op(() => p.foilBand(0.2, 0.8, 1)), { cls: 'small wide' }),
     button(T('Exporter la texture (PNG)', 'Export texture (PNG)'), () => p.canvas.toBlob((bl) => downloadBlob(bl, `${app.fileSafe(state.design.name)}_texture.png`)), { cls: 'small wide', ic: 'download' }),
     button(T('Importer une texture', 'Import a texture'), () => {
       const i = h('input', { type: 'file', accept: 'image/*' });

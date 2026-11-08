@@ -1,8 +1,8 @@
 // Exports : STL binaire, 3MF, ZIP, fiche de montage Markdown, JSON du projet.
 import * as THREE from 'three';
-import { buildHalfShell, buildSolidBody, buildLipSoup, weld, lineTiePoint, hangerPoints, makeProfile } from './geometry.js';
-import { computeMassProps } from './physics.js';
-import { HOOK_SIZES, MATERIALS, BALLAST_MATERIALS } from './design.js';
+import { weld, lineTiePoint, hangerPoints, makeProfile, ringSpec } from './geometry.js';
+import { computeMassProps, restingAttitude, BALLAST_TARGETS, ballastForTarget } from './physics.js';
+import { MATERIALS, BALLAST_MATERIALS, LURE_TYPES } from './design.js';
 import { makeZip } from './zip.js';
 import { getLang } from './i18n.js';
 
@@ -26,32 +26,42 @@ function bounds(soup) {
   return { min: mn, max: mx, size: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]] };
 }
 
-// Pièces dans le repère imprimante (Z vers le haut, posées sur z = 0), disposées sur le plateau.
-export function printParts(design, opts = {}) {
-  const parts = [];
-  const hollow = opts.hollow ?? true;
+export const PART_LABELS = {
+  left: { fr: 'Demi-corps gauche', en: 'Left half', file: 'moitie_gauche' },
+  right: { fr: 'Demi-corps droit', en: 'Right half', file: 'moitie_droite' },
+  solid: { fr: 'Corps une pièce', en: 'One-piece body', file: 'corps' },
+  lip: { fr: 'Bavette séparée', en: 'Separate lip', file: 'bavette' },
+  moldA: { fr: 'Moule — coquille A', en: 'Mold — half A', file: 'moule_A' },
+  moldB: { fr: 'Moule — coquille B', en: 'Mold — half B', file: 'moule_B' },
+  masterA: { fr: 'Contre-moule A (coffrage)', en: 'Master A (mold box)', file: 'contre_moule_A' },
+  masterB: { fr: 'Contre-moule B (coffrage)', en: 'Master B (mold box)', file: 'contre_moule_B' },
+};
+
+// Orientation d'impression (Z vers le haut, pièce posée sur z = 0) selon la pièce
+const ORIENT = {
+  left: (x, y, z, o) => { o[0] = x; o[1] = y; o[2] = z; },
+  right: (x, y, z, o) => { o[0] = x; o[1] = -y; o[2] = -z; },
+  solid: (x, y, z, o) => { o[0] = x; o[1] = -z; o[2] = y; },
+  lip: (x, y, z, o) => { o[0] = x; o[1] = -z; o[2] = y; },
+  moldA: (x, y, z, o) => { o[0] = x; o[1] = -y; o[2] = -z; },
+  moldB: (x, y, z, o) => { o[0] = x; o[1] = y; o[2] = z; },
+  masterA: (x, y, z, o) => { o[0] = x; o[1] = y; o[2] = z; },
+  masterB: (x, y, z, o) => { o[0] = x; o[1] = -y; o[2] = -z; },
+};
+
+// Pièces CSG → repère imprimante, disposées sur le plateau.
+export function layoutParts(design, rawParts) {
   const safe = (design.name || 'leurre').replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'leurre';
-  if (opts.solid) {
-    const s = buildSolidBody(design, 160, 112);
-    parts.push({ key: 'solid', file: `${safe}_corps_plein.stl`, label: L('Corps plein', 'Solid body'), soup: transformSoup(s, (x, y, z, o) => { o[0] = x; o[1] = -z; o[2] = y; }) });
-  } else {
-    const left = buildHalfShell(design, 1, { hollow, nu: 160, nt: 72 });
-    parts.push({ key: 'left', file: `${safe}_moitie_gauche.stl`, label: L('Demi-corps gauche', 'Left half'), soup: left });
-    const right = buildHalfShell(design, -1, { hollow, nu: 160, nt: 72 });
-    parts.push({ key: 'right', file: `${safe}_moitie_droite.stl`, label: L('Demi-corps droit', 'Right half'), soup: transformSoup(right, (x, y, z, o) => { o[0] = x; o[1] = -y; o[2] = -z; }) });
-  }
-  if (design.lip.enabled) {
-    parts.push({ key: 'lip', file: `${safe}_bavette.stl`, label: L('Bavette', 'Lip'), soup: buildLipSoup(design, true) });
-  }
-  // disposition sur le plateau : pièces empilées selon Y avec 6 mm d'écart, centrées en X
   let y = 0;
-  const placed = parts.map((p) => {
-    const b = bounds(p.soup);
+  const placed = rawParts.map((p) => {
+    const lab = PART_LABELS[p.key] || { fr: p.key, en: p.key, file: p.key };
+    const oriented = transformSoup(p.soup, ORIENT[p.key] || ORIENT.left);
+    const b = bounds(oriented);
     const dx = -b.min[0] - b.size[0] / 2, dy = y - b.min[1], dz = -b.min[2];
-    y += b.size[1] + 6;
-    return { ...p, soup: transformSoup(p.soup, (a, c, e, o) => { o[0] = a + dx; o[1] = c + dy; o[2] = e + dz; }) };
+    y += b.size[1] + 8;
+    return { key: p.key, label: L(lab.fr, lab.en), file: `${safe}_${lab.file}.stl`, soup: transformSoup(oriented, (a, c, e, o) => { o[0] = a + dx; o[1] = c + dy; o[2] = e + dz; }) };
   });
-  const total = y - 6;
+  const total = y - 8;
   for (const p of placed) {
     for (let i = 1; i < p.soup.length; i += 3) p.soup[i] -= total / 2;
     p.bounds = bounds(p.soup);
@@ -85,7 +95,7 @@ export function soupToSTL(soup, name = 'part') {
 const xmlEsc = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
 export function partsTo3MF(parts, design) {
-  const colors = { left: '#E8E2D0', right: '#E8E2D0', lip: '#BFD9E6', solid: '#E8E2D0' };
+  const colors = { left: '#E8E2D0', right: '#E8E2D0', lip: '#BFD9E6', solid: '#E8E2D0', moldA: '#7FB7C9', moldB: '#7FC9A9', masterA: '#D9B36C', masterB: '#D99A6C' };
   let objects = '', items = '', id = 2;
   const mats = parts.map((p) => `<base name="${xmlEsc(p.label)}" displaycolor="${colors[p.key] || '#DDDDDD'}FF"/>`).join('');
   parts.forEach((p, idx) => {
@@ -130,23 +140,25 @@ const f2 = (v) => (Math.round(v * 100) / 100).toFixed(2);
 const oz = (g) => (g / 28.3495).toFixed(3);
 const inch = (mm) => (mm / 25.4).toFixed(2);
 
-export function buildSheet(design, water = 'fresh') {
+export function buildSheet(design, water = 'fresh', extra = {}) {
   const mp = computeMassProps(design, water);
   const P = makeProfile(design);
   const mat = MATERIALS[design.print.material];
   const bm = BALLAST_MATERIALS[design.ballast.material];
   const tie = lineTiePoint(design);
   const hangers = hangerPoints(design);
+  const ring = ringSpec(design);
+  const rest = restingAttitude(design, mp, water);
+  const hw = mp.hardware;
   const cls = { floating: L('Flottant', 'Floating'), suspending: L('Suspending (neutre)', 'Suspending'), sinking: L('Coulant', 'Sinking') }[mp.buoyancyClass];
   const tieLabel = { nose: L('nez', 'nose'), lip: L('sur la bavette', 'on the lip'), back: L('sur le dos', 'on the back') }[tie.mode];
-  const hookLines = hangers.map((h, i) => {
-    const hs = HOOK_SIZES[h.size];
-    return `| ${i + 1} | ${h.kind === 'tail' ? L('Queue', 'Tail') : L('Ventre', 'Belly')} | ${f1(h.point.x)} mm ${L('du nez', 'from nose')} | ${L('Triple', 'Treble')} #${h.size} (${hs.len} mm, ${hs.mass} g) | ${hs.ring} mm |`;
-  }).join('\n');
+  const hookLines = hangers.map((h, i) => `| ${i + 1} | ${h.kind === 'tail' ? L('Queue', 'Tail') : L('Ventre', 'Belly')} | ${f1(h.point.x)} mm ${L('du nez', 'from nose')}${h.trail ? ` (+${f1(h.trail)} mm ${L('de traîne', 'trailing')})` : ''} | ${h.spec.ref} — ${h.spec.len} mm, ${h.spec.mass} g | ${ring.label} |`).join('\n');
+  const targets = BALLAST_TARGETS.map((t) => `| ${L(t.fr, t.en)} (${L(t.descFr, t.descEn)}) | ${(() => { const d = ballastForTarget(design, mp, t.id, water); return `${d >= 0 ? '+' : ''}${f2(d)} g`; })()} |`).join('\n');
+  const mold = extra.mold;
   const date = new Date().toISOString().slice(0, 10);
   return `# ${design.name} — ${L('Fiche de fabrication', 'Build sheet')}
 
-${L('Généré par', 'Generated by')} **DMF Lure Studio** · ${date}
+${L('Généré par', 'Generated by')} **DMF Lure Studio** · ${date} · ${L('Type', 'Type')} : ${L(LURE_TYPES[design.type]?.fr || '', LURE_TYPES[design.type]?.en || '')}
 
 ## ${L('Dimensions', 'Dimensions')}
 
@@ -155,52 +167,56 @@ ${L('Généré par', 'Generated by')} **DMF Lure Studio** · ${date}
 | ${L('Longueur corps', 'Body length')} | ${f1(mp.dims.length)} | ${inch(mp.dims.length)} |
 | ${L('Hauteur max', 'Max height')} | ${f1(mp.dims.height)} | ${inch(mp.dims.height)} |
 | ${L('Largeur max', 'Max width')} | ${f1(mp.dims.width)} | ${inch(mp.dims.width)} |
-${design.lip.enabled ? `| ${L('Bavette', 'Lip')} (${design.lip.shape}) | ${f1(design.lip.length)} × ${f1(design.lip.width)} × ${f1(design.lip.thickness)} @ ${design.lip.angle}° | |` : `| ${L('Bavette', 'Lip')} | ${L('aucune (lipless)', 'none (lipless)')} | |`}
+| ${L('Largeur dos / ventre', 'Back / belly width')} | × ${design.body.backWidth} / × ${design.body.bellyWidth}${design.body.keel ? ` · ${L('ventre en V', 'V belly')} ${Math.round(design.body.keel * 100)} %` : ''} | |
+${design.lip.enabled ? `| ${L('Bavette', 'Lip')} (${design.lip.shape}) | ${f1(design.lip.length)} × ${f1(design.lip.width)} × ${f1(design.lip.thickness)} @ ${design.lip.angle}° | ${design.print.lipIntegrated !== false ? L('intégrée au corps', 'integrated') : L('pièce séparée', 'separate part')} |` : `| ${L('Bavette', 'Lip')} | ${L('aucune', 'none')} | |`}
 
 ## ${L('Poids & flottabilité prévus (leurre fini)', 'Predicted weight & buoyancy (finished bait)')}
 
 - ${L('Masse totale', 'Total mass')} : **${f2(mp.mass)} g** (${oz(mp.mass)} oz)
-- ${L('Volume déplacé', 'Displaced volume')} : ${f2(mp.displacement / 1000)} cm³ → ${L('poussée', 'buoyancy')} ${f2(mp.buoyancy)} g (${water === 'salt' ? L('eau de mer', 'salt water') : L('eau douce', 'fresh water')})
-- ${L('Flottabilité nette', 'Net buoyancy')} : **${mp.netBuoyancy >= 0 ? '+' : ''}${f2(mp.netBuoyancy)} g** → **${cls}**
+- ${L('Flottabilité nette', 'Net buoyancy')} : **${mp.netBuoyancy >= 0 ? '+' : ''}${f2(mp.netBuoyancy)} g** → **${cls}** (${water === 'salt' ? L('eau de mer', 'salt water') : L('eau douce', 'fresh water')})
+- ${L('Au repos', 'At rest')} : ${rest.floating ? `${f1(rest.submergedPct)} % ${L('immergé, franc-bord', 'submerged, freeboard')} ${f1(rest.freeboard)} mm, ${L('assiette', 'trim')} ${f1(rest.trimDeg)}° (${rest.trimDeg > 0 ? L('nez bas', 'nose down') : L('queue basse', 'tail down')})` : L('coule', 'sinks')}
 - ${L('Stabilité (centre de poussée − centre de gravité)', 'Stability (CB − CG)')} : ${f2(mp.righting)} mm ${mp.righting > 0.3 ? '✅' : '⚠️'}
-- ${L('Lest à ajouter/retirer pour être suspending', 'Ballast change to suspend')} : ${mp.ballastToSuspend >= 0 ? '+' : ''}${f2(mp.ballastToSuspend)} g (${bm.label})
 
-| ${L('Composant', 'Component')} | g |
+| ${L('Objectif de lestage', 'Ballast target')} | ${L('Lest à ajouter', 'Ballast change')} |
 |---|---|
-${mp.items.map((i) => `| ${({ shell: L('Coque imprimée', 'Printed shell'), infill: L('Remplissage', 'Infill'), coat: L('Apprêt + peinture + vernis', 'Primer + paint + clear coat'), lip: L('Bavette', 'Lip'), tie: L('Attache de ligne', 'Line tie'), hook: L('Hameçon + anneau', 'Hook + split ring'), ballast: L('Lest', 'Ballast') })[i.key]} | ${f2(i.mass)} |`).join('\n')}
+${targets}
 
-## ${L('Impression 3D', '3D printing')}
+## ${L('Quincaillerie (adaptée au poids)', 'Hardware (sized to weight)')}
 
-- ${L('Matière', 'Material')} : **${mat.label}** (${mat.density} g/cm³)
-- ${L('Épaisseur de paroi', 'Wall thickness')} : ${f1(design.print.wall)} mm → ${L('régler', 'set')} ${Math.max(2, Math.round(design.print.wall / 0.42))} ${L('périmètres (buse 0,4)', 'perimeters (0.4 nozzle)')}
-- ${L('Remplissage', 'Infill')} : ${design.print.infill || 0} % ${design.print.infill ? '' : L('(coque creuse : laisser 100 % sur les parois, 0 % dans la cavité)', '(hollow: cavity already modelled, use 100% for walls)')}
-- ${L('Hauteur de couche', 'Layer height')} : 0,12 – 0,16 mm
-- ${L('Orientation', 'Orientation')} : ${L('chaque demi-corps posé sur sa face de joint (déjà orienté dans les fichiers), sans supports', 'each half flat on its joint face (already oriented), no supports')}
-- ${L('Bavette', 'Lip')} : ${L('à plat ; idéalement en PETG/PC transparent ou découpée dans du polycarbonate 1,5 mm', 'flat; ideally clear PETG/PC or cut from 1.5 mm polycarbonate')}
-
-## ${L('Quincaillerie', 'Hardware')}
-
+- ${L('Bas de ligne conseillé', 'Recommended leader')} : ${hw.leader} · ${L('résistance visée', 'target strength')} ${hw.strength}
 - ${L('Attache de ligne', 'Line tie')} : ${tieLabel} — ${f1(tie.point.x)} mm ${L('du nez', 'from nose')}
-- ${L('Armature', 'Through-wire')} : ${L('inox 0,8 mm, posée dans le plan de joint, boucles aux positions ci-dessous', '0.8 mm stainless, laid in the joint plane, loops at the positions below')}
+- ${L('Armature', 'Through-wire')} : ${L('inox', 'stainless')} ${mp.mass > 45 ? '1,2' : mp.mass > 20 ? '1,0' : '0,8'} mm ${L('dans le plan de joint (rainure prévue dans les fichiers)', 'in the joint plane (groove included in the files)')}
 
 | # | ${L('Position', 'Position')} | ${L('Distance', 'Distance')} | ${L('Hameçon', 'Hook')} | ${L('Anneau brisé', 'Split ring')} |
 |---|---|---|---|---|
-${hookLines || `| – | – | – | – | – |`}
+${hookLines || '| – | – | – | – | – |'}
 
-${design.ballast.grams > 0 ? `- ${L('Lest', 'Ballast')} : ${f2(design.ballast.grams)} g ${bm.label}, ${L('au fond de la cavité à', 'at the bottom of the cavity,')} ${f1(design.ballast.u * P.L)} mm ${L('du nez', 'from nose')}` : ''}
+${design.ballast.grams > 0 ? `- ${L('Lest', 'Ballast')} : ${f2(design.ballast.grams)} g ${bm.label} ${L('à', 'at')} ${f1(design.ballast.u * P.L)} mm ${L('du nez', 'from nose')}` : ''}
 
+## ${L('Impression 3D', '3D printing')}
+
+- ${L('Matière', 'Material')} : **${mat.label}** (${mat.density} g/cm³) · ${L('paroi', 'wall')} ${f1(design.print.wall)} mm (≈ ${Math.max(2, Math.round(design.print.wall / 0.42))} ${L('périmètres', 'perimeters')}) · ${L('remplissage cavité', 'cavity infill')} ${design.print.infill || 0} %
+- ${L('Chaque demi-corps se pose sur sa face de joint (déjà orienté), sans supports. Couche 0,12–0,16 mm.', 'Each half lies on its joint face (already oriented), no supports. 0.12–0.16 mm layers.')}
+${design.lip.enabled && design.print.lipIntegrated !== false ? `- ${L('La bavette est imprimée avec le corps : rien à coller.', 'The lip prints with the body: nothing to glue.')}` : ''}
+${mold ? `
+## ${L('Moule de coulée', 'Casting mold')}
+
+- ${L('Deux coquilles A/B avec 4 plots de centrage (jeu 0,25 mm), entonnoir de coulée sur le dos et', 'Two halves A/B with 4 registration keys (0.25 mm clearance), pour funnel on the back and')} ${mold.vents?.length || 0} ${L('évents', 'vents')}.
+- ${L('Rainure d’armature Ø', 'Armature groove Ø')} ${f1((mold.wireDia || 1.2) + 0.2)} mm ${L('qui traverse le moule : tendre le fil inox entre l’avant et l’arrière avant de fermer.', 'running through the mold: tension the wire front to back before closing.')}
+- ${L('Logements des boucles de pitons sous le ventre.', 'Pockets for the hanger loops under the belly.')}
+${mold.ballCount ? `- ${L('Billes de lest', 'Ballast balls')} : ${mold.ballCount} × Ø ${f1(mold.ballDia)} mm (≈ ${f2(mold.ballGrams)} g) ${L('tenues par des tétons de calage de chaque côté (petits trous Ø 1,2 mm à reboucher après démoulage).', 'held by locating pins on each side (small Ø 1.2 mm holes to fill after demolding).')}` : ''}
+- ${L('Démoulant (cire ou spray PVA) sur les deux coquilles, serrer avec 2 serre-joints, couler lentement par l’entonnoir jusqu’à ce que la résine sorte des évents.', 'Release agent on both halves, clamp, pour slowly until resin appears at the vents.')}
+` : ''}
 ## ${L('Assemblage', 'Assembly')}
 
-1. ${L('Ébavurer les faces de joint (papier 400) et tester l’ajustement à blanc.', 'Deburr the joint faces (400 grit) and dry-fit.')}
-2. ${L('Former l’armature inox, la poser dans le plan de joint ; coller le lest au fond de la cavité.', 'Bend the stainless wire harness, lay it in the joint plane; glue the ballast at the bottom of the cavity.')}
-3. ${L('Coller les deux moitiés à l’époxy 5 min ou cyanoacrylate ; maintenir serré 10 min.', 'Glue the halves with 5-minute epoxy or CA; clamp 10 min.')}
-4. ${L('Entailler une fente de bavette (scie fine, épaisseur', 'Cut the lip slot (fine saw, thickness')} ${f1(design.lip.thickness)} mm, ${L('angle', 'angle')} ${design.lip.angle}°) ${L('et coller la bavette à l’époxy.', 'and epoxy the lip in.')}
-5. ${L('Poncer, apprêt blanc, peinture (gabarit de texture exporté), yeux 3D.', 'Sand, white primer, paint (exported texture template), 3D eyes.')}
-6. ${L('Vernis époxy 2 couches (ou UV), séchage en rotation.', 'Two coats of epoxy (or UV) clear, cure on a turner.')}
-7. ${L('Test en bassin : ajuster l’attache (pince) si le leurre tire d’un côté.', 'Tank test: tune the line tie with pliers if it runs to one side.')}
+1. ${L('Ébavurer les faces de joint et tester l’ajustement à blanc.', 'Deburr the joint faces and dry-fit.')}
+2. ${L('Former l’armature inox, la poser dans la rainure ; coller le lest au fond de la cavité.', 'Bend the stainless harness, lay it in the groove; glue the ballast in the cavity.')}
+3. ${L('Coller les deux moitiés (époxy 5 min ou cyano), maintenir serré 10 min.', 'Glue the halves (5-min epoxy or CA), clamp 10 min.')}
+4. ${L('Poncer, apprêt, peinture (texture exportée), yeux, vernis époxy 2 couches.', 'Sand, prime, paint (exported texture), eyes, two coats of epoxy.')}
+5. ${L('Test en bassin, régler l’attache à la pince si le leurre tire d’un côté.', 'Tank test; tune the tie with pliers if it runs to one side.')}
 
 ---
-${L('Les valeurs sont des estimations physiques ; vérifiez toujours en bassin.', 'Values are physical estimates; always confirm with a tank test.')}
+${L('Valeurs estimées par le calcul : validez toujours en bassin.', 'Computed estimates: always confirm with a tank test.')}
 `;
 }
 

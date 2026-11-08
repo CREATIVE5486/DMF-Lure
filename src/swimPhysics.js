@@ -1,7 +1,7 @@
 // Modèle physique de nage (SI). Indépendant du rendu → testable sous Node.
 // Repère : x horizontal (le pêcheur est en x = 0, le leurre arrive depuis x > 0), y vertical (surface y = 0), z latéral.
-import { WATER } from './physics.js';
-import { HOOK_SIZES } from './design.js';
+import { WATER, displacementTable, restingAttitude } from './physics.js';
+import { hangerPoints } from './geometry.js';
 
 const G = 9.81;
 const deg = Math.PI / 180;
@@ -12,7 +12,11 @@ export const LINES = {
   braid: { E: 25e9, density: 0.97, label: { fr: 'Tresse', en: 'Braid' } },
 };
 
+export const KNOT = 0.514444;
+
 export const SCENARIOS = {
+  troll: { label: { fr: 'Traîne (bateau)', en: 'Trolling (boat)' } },
+  stop: { label: { fr: 'Arrêt (flottaison)', en: 'Rest (waterline)' } },
   steady: { label: { fr: 'Régulier', en: 'Steady' } },
   stopgo: { label: { fr: 'Stop & go', en: 'Stop & go' } },
   twitch: { label: { fr: 'Twitch', en: 'Twitch' } },
@@ -38,14 +42,25 @@ export function makeHydro(design, mp, water = 'fresh') {
   const Mright = m * G * righting;
   let vCrit;
   if (righting <= 0) vCrit = 0.05;
-  else if (!lipOn) vCrit = 3.2;
-  else vCrit = Math.sqrt((2 * Mright) / (rho * Alip * 0.15 * armLip)) * 1.35;
+  else if (!lipOn) vCrit = 8;
+  else {
+    let k = 1.35;
+    if (design.lineTie.mode === 'lip') k *= 1.6; // attache sur la bavette : très stabilisant
+    if (design.lip.shape === 'bill') k *= 1.15;
+    vCrit = Math.sqrt((2 * Mright) / (rho * Alip * 0.15 * armLip)) * k;
+  }
   const lipW = lipOn ? design.lip.width / 1000 : H;
   const ratio = lipOn ? Math.min(1.2, mp.lipArea / (mp.dims.height * mp.dims.width)) : 0.1;
   const angleFactor = lipOn ? 0.55 + 0.45 * Math.sin(Math.min(90, design.lip.angle + 30) * deg) : 0.6;
   const yawAmp = (lipOn ? 3 + 16 * ratio * angleFactor : 2.5) * Math.pow(Math.max(0.4, W / H), 0.35);
   const rollAmp = Math.min(40, yawAmp * (0.5 + 0.9 * Math.max(0, H / W - 1)) * Math.sqrt(2.5 / Math.max(0.6, mp.righting)));
-  const hookLen = Math.max(...design.hooks.belly.map((h) => (HOOK_SIZES[h.size] || HOOK_SIZES[4]).len), 0) / 1000;
+  const hookLen = Math.max(0, ...hangerPoints(design).filter((h) => h.kind === 'belly').map((h) => h.spec.len)) / 1000;
+  // flottabilité réelle : volume du corps sous la surface selon l'enfoncement
+  const tab = displacementTable(design, 40);
+  const Vbody = tab.at(-1)[1];
+  const extraV = Math.max(0, mp.displacement - Vbody) * 1e-9;
+  let rest = { trimDeg: 0, floating: false };
+  try { rest = restingAttitude(design, mp, water); } catch { /* ignore */ }
   return {
     rho, L, H, W, m, V, Af, Alip, lipCl, lipCd, cdBody, vCrit, yawAmp, rollAmp,
     mEff: m + 0.5 * rho * V,
@@ -56,12 +71,27 @@ export function makeHydro(design, mp, water = 'fresh') {
     lipTrim: lipOn ? (1 - design.lip.angle / 90) * 22 * deg * Math.min(1, ratio * 1.6) : 0,
     hookHang: hookLen * 0.9 + 0.004,
     righting,
+    cgY: mp.cg[1] / 1000,
+    dispTab: tab.map(([hh, v]) => [hh / 1000, v * 1e-9]),
+    extraV,
+    restPitch: (rest.trimDeg || 0) * deg,
+    restFloating: !!rest.floating,
+    rest,
   };
 }
 
 export const defaultSwimParams = () => ({
-  scenario: 'steady', speed: 0.9, line: 'fluoro', lineDiam: 0.28, cast: 25, depth: 4, rodHeight: 1.2, water: 'fresh',
+  scenario: 'troll', speed: 5 * KNOT, line: 'braid', lineDiam: 0.4, cast: 40, lineOut: 40, depth: 25, rodHeight: 1.5, water: 'salt',
 });
+
+function interp(tab, x) {
+  if (x <= tab[0][0]) return tab[0][1];
+  if (x >= tab[tab.length - 1][0]) return tab[tab.length - 1][1];
+  let lo = 0, hi = tab.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tab[m][0] <= x) lo = m; else hi = m; }
+  const t = (x - tab[lo][0]) / (tab[hi][0] - tab[lo][0]);
+  return tab[lo][1] + (tab[hi][1] - tab[lo][1]) * t;
+}
 
 export class SwimPhysics {
   constructor(hydro, params) {
@@ -71,14 +101,42 @@ export class SwimPhysics {
   }
 
   setHydro(h) { this.h = h; }
-  setParams(p) { Object.assign(this.p, p); }
+
+  // Changement de réglages à chaud : le leurre continue de nager
+  setParams(p) {
+    const prev = this.p.scenario;
+    Object.assign(this.p, p);
+    if (p.scenario && p.scenario !== prev) this.enterScenario(prev);
+    if (p.lineOut !== undefined && this.p.scenario === 'troll') this.lineLen = Math.hypot(this.p.lineOut, this.p.rodHeight);
+    if (this.finished && (this.p.scenario === 'troll' || this.p.scenario === 'stop')) this.finished = false;
+  }
+
+  enterScenario() {
+    const p = this.p;
+    if (p.scenario === 'troll') {
+      this.rodX = this.pos.x - p.lineOut;
+      this.lineLen = Math.hypot(p.lineOut, p.rodHeight);
+    } else if (p.scenario === 'stop') {
+      this.lineLen = 1e6;
+      // on pose le leurre à la surface pour observer sa flottaison
+      this.pos.y = Math.min(0, this.h.cgY - (this.h.dispTab[0][0] + this.h.dispTab.at(-1)[0]) / 2);
+      this.vel = { x: 0, y: 0, z: 0 };
+      this.pitch = this.h.restPitch || 0;
+    } else {
+      this.lineLen = Math.hypot(this.pos.x - this.rodX, p.rodHeight - this.pos.y) + 0.05;
+    }
+    this.finished = false;
+  }
 
   reset() {
     const p = this.p;
     this.t = 0;
-    this.pos = { x: p.cast, y: -0.005, z: 0 };
-    this.vel = { x: 0, y: 0, z: 0 };
-    this.lineLen = Math.hypot(p.cast, p.rodHeight) + 0.6;
+    this.rodX = 0;
+    const troll = p.scenario === 'troll';
+    const x0 = troll ? p.lineOut : p.scenario === 'stop' ? 5 : p.cast;
+    this.pos = { x: x0, y: p.scenario === 'stop' ? Math.min(0, this.h.cgY - (this.h.dispTab[0][0] + this.h.dispTab.at(-1)[0]) / 2) : -0.005, z: 0 };
+    this.vel = { x: troll ? -p.speed : 0, y: 0, z: 0 };
+    this.lineLen = troll ? Math.hypot(p.lineOut, p.rodHeight) : p.scenario === 'stop' ? 1e6 : Math.hypot(p.cast, p.rodHeight) + 0.6;
     this.phase = 0;
     this.yaw = 0; this.pitch = 0; this.roll = 0;
     this.rollSpin = 0;
@@ -112,13 +170,16 @@ export class SwimPhysics {
   step(dt) {
     if (this.finished) return;
     const h = this.h, p = this.p, s = this;
-    const settle = s.t < 0.6;
-    const reel = settle ? 0 : this.reelSpeed(s.t);
-    s.reel = reel;
-    s.lineLen = Math.max(0.5, s.lineLen - reel * dt);
+    const troll = p.scenario === 'troll', stop = p.scenario === 'stop';
+    const settle = !troll && s.t < 0.6;
+    let reel = 0;
+    if (troll) s.rodX -= p.speed * dt;
+    else if (!stop && !settle) reel = this.reelSpeed(s.t);
+    s.reel = troll ? p.speed : reel;
+    if (!troll && !stop) s.lineLen = Math.max(0.5, s.lineLen - reel * dt);
 
     // --- ligne : élastique, sans compression
-    const rx = 0 - s.pos.x, ry = p.rodHeight - s.pos.y, rz = 0 - s.pos.z;
+    const rx = s.rodX - s.pos.x, ry = p.rodHeight - s.pos.y, rz = 0 - s.pos.z;
     const D = Math.hypot(rx, ry, rz);
     const nx = rx / D, ny = ry / D, nz = rz / D;
     const line = LINES[p.line] || LINES.mono;
@@ -133,10 +194,13 @@ export class SwimPhysics {
 
     let fx = T * nx, fy = T * ny, fz = T * nz;
 
-    // --- hydrostatique
+    // --- hydrostatique (volume réellement immergé selon l'enfoncement)
     const depth = -s.pos.y;
-    const sub = Math.max(0, Math.min(1, depth / h.H + 0.5));
-    fy += h.rho * G * h.V * sub - h.m * G;
+    const yWater = h.cgY - s.pos.y; // surface dans le repère du leurre (m)
+    const vBody = interp(h.dispTab, yWater);
+    const vTot = h.dispTab[h.dispTab.length - 1][1];
+    const sub = vTot > 0 ? Math.max(0, Math.min(1, vBody / vTot)) : 0;
+    fy += h.rho * G * (vBody + h.extraV * sub) - h.m * G;
 
     // --- traînée anisotrope
     const sp = Math.hypot(s.vel.x, s.vel.y, s.vel.z);
@@ -157,7 +221,7 @@ export class SwimPhysics {
       const vpx = s.vel.x - vToward * nx, vpy = s.vel.y - vToward * ny, vpz = s.vel.z - vToward * nz;
       const vp = Math.hypot(vpx, vpy, vpz);
       if (vp > 1e-4) {
-        const F = 0.5 * h.rho * 1.1 * (p.lineDiam / 1000) * lsub * vp * vp * 0.1;
+        const F = 0.5 * h.rho * 1.1 * (p.lineDiam / 1000) * lsub * vp * vp * 0.3;
         fx -= (F * vpx) / vp; fy -= (F * vpy) / vp; fz -= (F * vpz) / vp;
       }
     }
@@ -192,7 +256,7 @@ export class SwimPhysics {
     s.pos.z += s.vel.z * dt;
 
     // surface : le leurre ne sort pas de l'eau
-    if (s.pos.y > h.H * 0.25) { s.pos.y = h.H * 0.25; s.vel.y = Math.min(0, s.vel.y); }
+    if (s.pos.y > h.H * 0.7) { s.pos.y = h.H * 0.7; s.vel.y = Math.min(0, s.vel.y); }
     // fond
     const floor = -p.depth + h.H * 0.5 + h.hookHang;
     if (s.pos.y < floor) {
@@ -212,7 +276,9 @@ export class SwimPhysics {
     s.phase += 2 * Math.PI * f * dt;
     const ampK = Math.min(1, fwd / 0.35);
     const pathPitch = Math.atan2(-s.vel.y, Math.max(0.05, fwd));
-    const targetPitch = fwd > 0.05 ? pathPitch + h.lipTrim * ampK : (s.vel.y > 0.02 ? -0.12 : 0.04);
+    const atSurface = sub < 0.995;
+    const restPitch = atSurface ? h.restPitch : (s.vel.y > 0.02 ? -0.12 : s.vel.y < -0.05 ? 0.25 : 0.04);
+    const targetPitch = fwd > 0.05 ? pathPitch * ampK + restPitch * (1 - ampK) + h.lipTrim * ampK : restPitch;
     s.pitch += (Math.max(-0.6, Math.min(0.6, targetPitch)) - s.pitch) * Math.min(1, dt * 6);
     const dartYaw = s.dart * s.dartSide * 32 * deg * Math.sin(Math.min(1, s.dart) * Math.PI);
     s.yaw = h.yawAmp * deg * ampK * Math.sin(s.phase) + dartYaw;
@@ -230,9 +296,14 @@ export class SwimPhysics {
     if (fwd > 0.2) { M.freqSum += f * dt; M.freqN += dt; }
     M.maxRoll = Math.max(M.maxRoll, Math.abs(s.roll % (2 * Math.PI)) / deg);
     M.maxYaw = Math.max(M.maxYaw, Math.abs(s.yaw) / deg);
-    if (s.t - s.lastTrace > 0.05) { s.trace.push([s.pos.x, depth]); s.lastTrace = s.t; }
+    if (s.t - s.lastTrace > 0.05) {
+      s.trace.push([s.t, s.pos.x - s.rodX, Math.max(0, depth)]);
+      if (s.trace.length > 3000) s.trace.shift();
+      s.lastTrace = s.t;
+    }
+    s.sub = sub;
 
-    if (s.pos.x < 1.2 || s.t > 240) s.finished = true;
+    if (!troll && !stop && (s.pos.x - s.rodX < 1.2 || s.t > 300)) s.finished = true;
   }
 
   verdict() {

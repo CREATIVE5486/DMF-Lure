@@ -14,7 +14,7 @@ export function emit(evt, payload) {
 }
 
 export const state = {
-  design: presetDesign('shad'),
+  design: presetDesign('deep'),
   projectId: null,
   tab: 'design',
   water: 'fresh',

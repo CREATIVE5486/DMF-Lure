@@ -83,9 +83,9 @@ export class Studio {
     return g;
   }
 
-  setLure(design, texture) {
+  setLure(design, painter) {
     if (this.lure) { this.root.remove(this.lure); disposeObject(this.lure); }
-    this.lure = buildLure(design, texture, { hardware: this.options.hardware });
+    this.lure = buildLure(design, painter?.texture, { hardware: this.options.hardware, foil: painter?.foilTexture });
     const L = design.body.length;
     this.lure.add(this.markers);
     this.root.add(this.lure);
@@ -117,12 +117,22 @@ export class Studio {
       right: new THREE.MeshStandardMaterial({ color: 0xe9e1c6, roughness: 0.55 }),
       solid: new THREE.MeshStandardMaterial({ color: 0xe9e1c6, roughness: 0.55 }),
       lip: new THREE.MeshPhysicalMaterial({ color: 0xcfe9f5, roughness: 0.15, transparent: true, opacity: 0.85 }),
+      moldA: new THREE.MeshStandardMaterial({ color: 0x7fb7c9, roughness: 0.6 }),
+      moldB: new THREE.MeshStandardMaterial({ color: 0x7fc9a9, roughness: 0.6 }),
+      masterA: new THREE.MeshStandardMaterial({ color: 0xd9b36c, roughness: 0.6 }),
+      masterB: new THREE.MeshStandardMaterial({ color: 0xd99a6c, roughness: 0.6 }),
     };
     for (const p of parts) {
       const mesh = new THREE.Mesh(soupToGeometry(printSoupToThree(p.soup)), mat[p.key] || mat.left);
       mesh.userData.key = p.key;
       this.parts.add(mesh);
     }
+    const bb = new THREE.Box3().setFromObject(this.parts);
+    const size = bb.getSize(new THREE.Vector3());
+    const span = Math.max(80, size.x, size.z * 1.3, size.y * 2);
+    const prev = this.bedSpan;
+    this.bedSpan = span;
+    if (this.mode === 'export' && (!prev || Math.abs(prev - span) > 20)) this.view('bed');
   }
 
   setMode(mode) {
@@ -153,7 +163,7 @@ export class Studio {
       belly: [new THREE.Vector3(0, -d * 0.9, 0.01), new THREE.Vector3(0, 0, 0)],
       front: [new THREE.Vector3(-d * 0.9, 0, 0.01), new THREE.Vector3(0, 0, 0)],
       back: [new THREE.Vector3(d * 0.9, 0, 0.01), new THREE.Vector3(0, 0, 0)],
-      bed: [new THREE.Vector3(0, 230, 190), new THREE.Vector3(0, 0, 0)],
+      bed: [new THREE.Vector3(0, (this.bedSpan || 200) * 1.05, (this.bedSpan || 200) * 0.95), new THREE.Vector3(0, 0, 0)],
     };
     const p = presets[name] || presets.reset;
     if (!animate) {

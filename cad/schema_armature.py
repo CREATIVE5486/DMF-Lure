@@ -78,97 +78,59 @@ def dessin(ax, a, k, ox, oy, lw_mm, cotes=True):
             solid_capstyle="round", solid_joinstyle="round", zorder=3)
     ax.plot([X(p[0]) for p in a.pts], [Y(p[1]) for p in a.pts], color="white", lw=0.25,
             ls=(0, (1, 1.5)), zorder=4)
+    # pions (clous)
+    for i, p in enumerate(a.pions):
+        cx, cy = p["c"]
+        ax.add_patch(plt.Circle((X(cx), Y(cy)), k * a.clou_d / 2, fc="#555", ec="k", lw=0.3, zorder=5))
+        ax.text(X(cx), Y(cy), str(i + 1), color="white", fontsize=4.5 * max(1, k / 1.4),
+                ha="center", va="center", zorder=6, weight="bold")
     if not cotes:
         return
     r = a.reperes
     d = a.d
     yb_out = r["y_bas_v"] - r["r_v"] - d / 2
     ys = r["ys"]
-    top = 13.5
-    # cotes horizontales (axes)
-    cote_h(ax, r["xc_n"], r["xv"], top, f"{r['xv'] - r['xc_n']:.1f}", k, ox, oy, yref=r["yc_n"])
-    cote_h(ax, r["xv"], r["xc_q"], top, f"{r['xc_q'] - r['xv']:.1f}", k, ox, oy, yref=yb_out)
-    cote_h(ax, r["xc_n"], r["xc_q"], top + 4.5,
-           f"{r['xc_q'] - r['xc_n']:.1f}  (entraxe œillets)", k, ox, oy, yref=r["yc_n"])
-    # coudes
-    x1a, x1b = a.x_coude1
-    x2a, x2b = a.x_coude2
-    bas = -11.5
-    cote_h(ax, r["xc_n"], x1a, bas, f"{x1a - r['xc_n']:.1f}", k, ox, oy, yref=r["yc_n"])
-    cote_h(ax, x1a, x1b, bas, f"{x1b - x1a:.1f}", k, ox, oy, yref=ys)
-    cote_h(ax, x1b, r["xv"] - r["r_v"], bas, f"{r['xv'] - r['r_v'] - x1b:.1f}", k, ox, oy, yref=ys)
-    cote_h(ax, r["xv"] + r["r_v"], x2a, bas, f"{x2a - r['xv'] - r['r_v']:.1f}", k, ox, oy, yref=ys)
-    cote_h(ax, x2a, x2b, bas, f"{x2b - x2a:.1f}", k, ox, oy, yref=ys)
-    cote_h(ax, x2b, r["xc_q"], bas, f"{r['xc_q'] - x2b:.1f}", k, ox, oy, yref=r["yc_q"])
+    # entraxes des pions en X (chaîne)
+    bas = -12.5
+    xs = [p["c"][0] for p in a.pions]
+    niveaux = [bas, bas - 3.4]
+    for i in range(1, len(xs)):
+        lvl = niveaux[i % 2]
+        cote_h(ax, xs[i - 1], xs[i], lvl, f"{xs[i] - xs[i - 1]:.2f}", k, ox, oy,
+               yref=a.pions[i]["c"][1], fs=6)
+    cote_h(ax, xs[0], xs[-1], 12.5, f"{xs[-1] - xs[0]:.2f}  (pion de nez → pion de queue)", k, ox, oy,
+           yref=a.pions[0]["c"][1])
     # épingle ventrale
-    cote_h(ax, r["xv"] - r["r_v"] - d / 2, r["xv"] + r["r_v"] + d / 2, -15.5,
-           f"G = {2 * r['r_v'] + d:.1f} ext.", k, ox, oy, yref=r["y_bas_v"])
-    cote_v(ax, ys, yb_out, r["xv"] + 5.0, f"H = {ys - yb_out:.1f}\n(axe tige → bas du U)", k, ox, oy)
-    cote_v(ax, ventre(r["xv"]), yb_out + d, r["xv"] - 4.0, f"jour {ventre(r['xv']) - yb_out - d:.1f}",
+    cote_v(ax, ys, yb_out, r["xv"] + 6.0, f"H = {ys - yb_out:.1f}\n(axe tige → bas du U)", k, ox, oy)
+    cote_v(ax, ventre(r["xv"]), yb_out + d, r["xv"] - 4.5, f"jour {ventre(r['xv']) - yb_out - d:.1f}",
            k, ox, oy, cote="g")
-    # hauteurs
-    cote_v(ax, r["yc_n"] - d / 2, ys, x1b + 3, f"{ys - (r['yc_n'] - d / 2):.1f}", k, ox, oy)
-    cote_v(ax, ys, r["yc_q"] - d / 2, x2b - 4, f"{ys - (r['yc_q'] - d / 2):.1f}", k, ox, oy)
-    # angles
-    ang1 = math.degrees(math.atan2(ys - (r["yc_n"] - d / 2), x1b - x1a))
-    ang2 = math.degrees(math.atan2(ys - (r["yc_q"] - d / 2), x2b - x2a))
-    ax.text(X(x1a + 2.6), Y(r["yc_n"] + 0.6), f"{ang1:.0f}°", fontsize=7, color=BLEU)
-    ax.text(X((x2a + x2b) / 2 + 1), Y((ys + r["yc_q"]) / 2 + 1.6), f"{ang2:.0f}°", fontsize=7, color=BLEU)
-    # œillets
-    ax.text(X(r["xc_n"] - 1), Y(r["yc_n"] + 3.2), f"Œillet de nez\nØint {a.oeil_nez_di:.1f}",
-            fontsize=7, ha="center", color=BLEU)
-    ax.text(X(r["xc_q"] + 1), Y(r["yc_q"] - 5.2), f"Œillet de queue\nØint {a.oeil_queue_di:.1f}",
-            fontsize=7, ha="center", color=BLEU)
-    ax.text(X(r["xv"] + 9), Y(r["y_bas_v"] - 2.6), f"Épingle ventrale\nØint {a.oeil_ventre_di:.1f}",
-            fontsize=7, ha="left", color=BLEU)
-    xjn = r["xc_n"] + math.sqrt(r["r_n"] ** 2 - (d / 2) ** 2)
-    cote_h(ax, a.x_retour_nez, xjn, r["yc_n"] + 2.4, f"retour {a.x_retour_nez - xjn:.1f}", k, ox, oy,
-           yref=r["yc_n"] + 0.5, fs=6)
-    xj = r["xc_q"] - math.sqrt(r["r_q"] ** 2 - (d / 2) ** 2)
-    cote_h(ax, a.x_retour_queue, xj, r["yc_q"] + 3.4, f"retour {xj - a.x_retour_queue:.1f}", k, ox, oy,
-           yref=r["yc_q"] + 0.5, fs=6)
+    ax.text(X(r["xv"] + 8), Y(r["y_bas_v"] - 2.0),
+            f"G = {2 * r['r_v'] + d:.1f} ext.", fontsize=7, color=BLEU)
+    # hauteurs de tige
+    cote_v(ax, r["yc_n"] - d / 2, ys, a.x_coude1[1] + 4, f"{ys - (r['yc_n'] - d / 2):.2f}", k, ox, oy)
+    cote_v(ax, ys, r["yc_q"] - d / 2, a.x_coude2[1] - 4, f"{ys - (r['yc_q'] - d / 2):.2f}", k, ox, oy)
+    xjn = r["xc_n"] + r["xj"]
+    cote_h(ax, a.x_retour_nez, xjn, r["yc_n"] + 2.6, f"retour {a.x_retour_nez - xjn:.1f}", k, ox, oy,
+           yref=r["yc_n"] + 0.8, fs=6)
+    xjq = r["xc_q"] - r["xj"]
+    cote_h(ax, a.x_retour_queue, xjq, r["yc_q"] + 3.6, f"retour {xjq - a.x_retour_queue:.1f}", k, ox, oy,
+           yref=r["yc_q"] + 0.8, fs=6)
 
 
 def gamme(a):
-    """Longueurs droites et angles de pliage, dans l'ordre du fil."""
-    rows = []
-    prims = a.prims
-
-    def ang(p):
-        return math.degrees(math.atan2(p[2][1] - p[1][1], p[2][0] - p[1][0]))
-    for i, p in enumerate(prims):
-        if p[0] == "L":
-            ln = math.dist(p[1], p[2])
-            rows.append(["droit", f"{ln:.1f}"])
-        else:
-            (xa, ya), (xm, ym), (xb, yb) = p[1], p[2], p[3]
-            # rayon via cercle circonscrit
-            ax_, ay_ = xa, ya
-            bx, by = xm, ym
-            cx, cy = xb, yb
-            dd = 2 * (ax_ * (by - cy) + bx * (cy - ay_) + cx * (ay_ - by))
-            ux = ((ax_**2 + ay_**2) * (by - cy) + (bx**2 + by**2) * (cy - ay_) + (cx**2 + cy**2) * (ay_ - by)) / dd
-            uy = ((ax_**2 + ay_**2) * (cx - bx) + (bx**2 + by**2) * (ax_ - cx) + (cx**2 + cy**2) * (bx - ax_)) / dd
-            R = math.hypot(xa - ux, ya - uy)
-            a0 = math.atan2(ya - uy, xa - ux)
-            a1 = math.atan2(yb - uy, xb - ux)
-            sweep = (a1 - a0) % (2 * math.pi)
-            am = math.atan2(ym - uy, xm - ux)
-            if not ((am - a0) % (2 * math.pi) < sweep):
-                sweep = 2 * math.pi - sweep
-            rows.append([f"enroulé {math.degrees(sweep):.0f}° sur mandrin Ø{2 * R - a.d:.1f}",
-                         f"{R * sweep:.1f}"])
-    # angles entre segments droits consécutifs
+    """Tronçons dans l'ordre du fil : droits (longueur) et enroulements (pion, angle)."""
+    from armature import balayage_arc
     out = []
-    for i, p in enumerate(prims):
-        r = rows[i]
-        pli = ""
-        if p[0] == "L" and i + 1 < len(prims) and prims[i + 1][0] == "L":
-            q = prims[i + 1]
-            da = (ang(q) - ang(p) + 180) % 360 - 180
-            if abs(da) > 0.5:
-                pli = f"pli {abs(da):.0f}°"
-        out.append([str(i + 1), r[0], r[1], pli])
+    ip = 0
+    for i, p in enumerate(a.prims):
+        if p[0] == "L":
+            out.append([str(i + 1), "droit", f"{math.dist(p[1], p[2]):.1f}"])
+        else:
+            c, R, a0, sw = balayage_arc(p[1], p[2], p[3])
+            pn = a.pions[ip]
+            ip += 1
+            out.append([str(i + 1), f"enroulé {abs(math.degrees(sw)):.0f}° autour du pion {ip} ({pn['nom']})",
+                        f"{R * abs(sw):.1f}"])
     return out
 
 
@@ -177,25 +139,25 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     pdf_path = os.path.join(OUT, "armature_plan.pdf")
     L = a.longueur()
+    coupe = math.ceil(L / 5) * 5 + 20
     with PdfPages(pdf_path) as pdf:
         # ---------------- page 1 : 2:1 coté
         fig, ax = page()
         k = 2.0
-        ox, oy = 22, 112
+        ox, oy = 22, 115
         dessin(ax, a, k, ox, oy, a.d)
-        ax.text(10, 200, "Armature fil inox – leurre minnow 105 (impression ABS couché)",
+        ax.text(10, 200, "Armature fil inox – leurre minnow 105 (impression ABS couché, pause unique)",
                 fontsize=12, weight="bold")
-        ax.text(10, 193.5, f"Échelle 2:1  ·  cotes en mm, sur l'axe du fil (fibre neutre)  ·  "
-                f"fil inox Ø{a.d:.1f} (304/316 ressort)  ·  longueur développée {L:.0f} mm "
-                f"→ couper {math.ceil(L / 5) * 5 + 20:.0f} mm",
-                fontsize=8)
+        ax.text(10, 193.5, f"Échelle 2:1  ·  cotes en mm  ·  fil inox Ø{a.d:g} (304/316)  ·  "
+                f"pions = clous Ø{a.clou_d:g} (gabarit out/gabarit_pions_impression.stl)  ·  "
+                f"longueur développée {L:.0f} mm → couper {coupe:.0f} mm", fontsize=8)
         notes = [
-            "• Tout le fil est dans UN SEUL PLAN : poser sur une surface plane après chaque pli et redresser.",
-            f"• Œillets nez/queue : enrouler sur un foret Ø{a.oeil_nez_di:g} (queue lisse), brins jointifs, le retour se loge contre la tige.",
-            f"• Épingle ventrale : enrouler sur un foret Ø{a.oeil_ventre_di:g}, branches parallèles (entraxe {a.oeil_ventre_di + a.d:g}).",
-            f"• Fil Ø{a.d:g} : pince plate + étau, enrouler les œillets en tournant le foret serré dans l'étau.",
-            "• Les cotes horizontales se mesurent parallèlement à la tige ; la silhouette grise = contour du leurre.",
-            "• Vérifier à plat sur le gabarit 1:1 (page 2) puis à blanc dans la rainure avant l'impression.",
+            "• Tous les plis se font AUTOUR DES CLOUS du gabarit : rayon de fibre neutre "
+            f"{a.r:.2f} mm partout, les cotes du bas sont les entraxes des pions (identiques au gabarit).",
+            "• Tout le fil est dans UN SEUL PLAN : il se couche dans la gravure du gabarit ; contrôler à plat après chaque pli.",
+            "• Œillets : brins jointifs (le retour se loge contre la tige) ; recouper les retours sur les traits gravés du gabarit.",
+            "• L'inox revient un peu après pliage : sur-plier de quelques degrés, puis vérifier en reposant le fil sur les pions.",
+            "• Rainure du leurre : jeu 0,5 mm sur le Ø (paramètre fil_jeu_diam) → le fil rentre même avec de petits écarts.",
         ]
         for i, t in enumerate(notes):
             ax.text(10, 40 - i * 5, t, fontsize=7.5)
@@ -203,51 +165,49 @@ def main():
         fig.savefig(os.path.join(OUT, "armature_plan_p1.png"), dpi=200)
         plt.close(fig)
 
-        # ---------------- page 2 : gabarit 1:1 + gamme
+        # ---------------- page 2 : 1:1 + pions + gamme
         fig, ax = page()
         k = 1.0
-        ox, oy = 20, 160
+        ox, oy = 20, 165
         dessin(ax, a, k, ox, oy, a.d, cotes=False)
-        ax.text(10, 200, "Gabarit 1:1 – imprimer à 100 % (« taille réelle », sans ajustement)",
+        ax.text(10, 200, "Vue 1:1 (imprimer à 100 %) – pions numérotés, gamme de pliage",
                 fontsize=11, weight="bold")
-        # règle de contrôle 50 mm
-        ax.plot([150, 200], [182, 182], color="k", lw=0.8)
+        ax.plot([150, 200], [186, 186], color="k", lw=0.8)
         for x in range(150, 201, 10):
-            ax.plot([x, x], [181, 183.5], color="k", lw=0.6)
-        ax.text(175, 184.5, "contrôle : 50 mm", ha="center", fontsize=7)
-        # repères des coudes (ticks)
-        for x in (a.x_coude1[0], a.x_coude1[1], a.x_coude2[0], a.x_coude2[1]):
-            ax.plot([ox + x, ox + x], [oy - 12, oy + 12], color=BLEU, lw=0.3, ls=(0, (2, 2)))
+            ax.plot([x, x], [185, 187.5], color="k", lw=0.6)
+        ax.text(175, 188.5, "contrôle : 50 mm", ha="center", fontsize=7)
+        # pions
+        ax.text(10, 145, "Pions (centre des clous, repère : pion 1 = œillet de nez)", fontsize=9, weight="bold")
+        y = 139
+        x0, y0 = a.pions[0]["c"]
+        for i, p in enumerate(a.pions):
+            ax.text(12, y, f"{i + 1}", fontsize=7.5)
+            ax.text(18, y, p["nom"], fontsize=7.5)
+            ax.text(55, y, f"X {p['c'][0] - x0:7.2f}   Y {p['c'][1] - y0:6.2f}", fontsize=7.5, family="monospace")
+            ax.text(100, y, f"pli {p['pli']:.0f}°", fontsize=7.5)
+            y -= 4.6
         # gamme
         rows = gamme(a)
-        ax.text(10, 138, "Gamme (dans l'ordre du fil, du retour de nez au retour de queue)",
-                fontsize=9, weight="bold")
-        y = 131
-        ax.text(12, y, "N°", fontsize=7.5, weight="bold")
-        ax.text(22, y, "tronçon", fontsize=7.5, weight="bold")
-        ax.text(110, y, "longueur (mm)", fontsize=7.5, weight="bold")
-        ax.text(140, y, "pli suivant", fontsize=7.5, weight="bold")
+        ax.text(130, 145, "Gamme (du retour de nez au retour de queue)", fontsize=9, weight="bold")
+        y = 139
         for rw in rows:
-            y -= 5.2
-            ax.text(12, y, rw[0], fontsize=7.5)
-            ax.text(22, y, rw[1], fontsize=7.5)
-            ax.text(110, y, rw[2], fontsize=7.5)
-            ax.text(140, y, rw[3], fontsize=7.5)
-        y -= 7
-        ax.text(12, y, f"Total développé ≈ {L:.0f} mm (+ prise de pince : couper "
-                f"{math.ceil(L / 5) * 5 + 20:.0f} mm puis recouper les retours à longueur).",
-                fontsize=7.5)
+            ax.text(132, y, rw[0], fontsize=7)
+            ax.text(138, y, rw[1], fontsize=7)
+            ax.text(268, y, rw[2] + " mm", fontsize=7, ha="right")
+            y -= 4.3
         conseils = [
-            "Ordre conseillé :",
-            f"1. Former l'œillet de nez sur le foret Ø{a.oeil_nez_di:g} en laissant ≈ 15 mm de queue, recouper le retour à {a.x_retour_nez - a.reperes['xc_n'] - math.sqrt(a.reperes['r_n'] ** 2 - a.d ** 2 / 4):.1f} mm.",
-            "2. Plier la montée (coude bas puis coude haut) en se calant sur le gabarit.",
-            f"3. Marquer l'axe de l'épingle, enrouler sur foret Ø{a.oeil_ventre_di:g}, serrer les branches parallèles.",
-            "4. Plier la descente arrière, contrôler sur gabarit.",
-            "5. Former l'œillet de queue, recouper le retour.",
-            "6. Mettre à plat (étau / marteau sur bois), présenter dans la rainure imprimée.",
+            "Mode opératoire sur le gabarit :",
+            "1. Clous enfoncés par dessous (tête dans le lamage), gabarit posé sur ses bossages.",
+            f"2. Couper {coupe:.0f} mm. Enrouler l'œillet de nez autour du pion 1 (≈ 15 mm de queue côté retour).",
+            "3. Coucher la tige dans la gravure, l'enrouler successivement autour des pions 2, 3, 4,",
+            "   puis faire le tour du pion 5 (fond de l'épingle) et remonter par le pion 6.",
+            "4. Continuer : pions 7 et 8 (descente arrière), puis faire le tour du pion 9 (œillet de queue).",
+            "5. Sortir l'armature, pincer jointifs les brins des œillets et de l'épingle,",
+            "   recouper les retours aux traits gravés.",
+            "6. Mettre à plat (étau / maillet sur bois) et présenter à blanc dans la rainure imprimée.",
         ]
         for i, t in enumerate(conseils):
-            ax.text(175, 131 - i * 6, t, fontsize=7, weight="bold" if i == 0 else None, wrap=True)
+            ax.text(10, 92 - i * 5, t, fontsize=7.5, weight="bold" if i == 0 else None)
         pdf.savefig(fig)
         fig.savefig(os.path.join(OUT, "armature_plan_p2.png"), dpi=200)
         plt.close(fig)

@@ -1,9 +1,10 @@
 # DMF-Lure – minnow 105 mm imprimé en ABS (FDM)
 
-Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm, 32 g), à imprimer
+Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm), à imprimer
 **couché sur le flanc**, surélevé sur supports dédiés, avec **armature inox Ø1,6 traversante** et
-**billes de lest Ø5 mm** insérées pendant des pauses d'impression. La bavette fait partie du corps
-(une seule pièce), avec un grand congé sous le menton.
+**7 billes de lest Ø5 mm**. Armature et billes se posent pendant **une seule pause**.
+La bavette fait corps avec le leurre, avec un fondu arrondi sous le menton.
+L'armature se plie sur un **gabarit à pions imprimé** (clous Ø2,92).
 
 ![plateau](docs/plateau.png)
 ![armature et billes](docs/coupe_armature_billes.png)
@@ -12,101 +13,110 @@ Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm, 32
 
 | Fichier | Contenu |
 |---|---|
-| `plateau.3mf` | leurre + supports positionnés, deux objets séparés → **à ouvrir directement dans le slicer** |
-| `leurre_impression.stl` | leurre seul, positionné pour l'impression |
-| `supports.stl` | supports seuls (même repère) |
+| `plateau.3mf` | leurre + supports positionnés (2 objets) → **à ouvrir directement dans le slicer** |
+| `leurre_impression.stl`, `supports.stl` | les mêmes, séparés |
+| `gabarit_pions_impression.stl` | **gabarit de pliage**, déjà retourné pour l'impression |
+| `armature_plan.pdf` | p.1 : armature cotée 2:1 (entraxes des pions) ; p.2 : vue 1:1, coordonnées des pions, gamme |
 | `armature_fil_impression.stl` | fil en place (contrôle visuel, **ne pas imprimer**) |
-| `leurre.step`, `armature_fil.step` | CAO (repère leurre) |
-| `armature_plan.pdf` | **plan de pliage** : p.1 coté 2:1, p.2 gabarit 1:1 + gamme |
-| `rapport.json` | hauteurs de pause, masses, positions des billes, paramètres |
+| `leurre.step`, `armature_fil.step`, `gabarit_pions.step` | CAO |
+| `rapport.json` | hauteur de pause, gardes, masses, positions des billes, paramètres |
 
-Régénérer : `pip install -r requirements.txt` puis `python3 cad/lure_artist105.py && python3 cad/schema_armature.py`
-(≈ 2 min). Tout est paramétrique dans `cad/lure_artist105.py` (`P = dict(...)`), `cad/armature.py` et `cad/geom.py` (profils).
+Régénérer : `pip install -r requirements.txt`, puis
+`python3 cad/lure_artist105.py && python3 cad/schema_armature.py && python3 cad/gabarit_pions.py`.
+Tout est paramétrique : `P` dans `cad/lure_artist105.py`, `Armature` dans `cad/armature.py`,
+`G` dans `cad/gabarit_pions.py`, profils du corps dans `cad/geom.py`.
 
-## Géométrie relevée
+## Impression du leurre (ABS)
 
-* Longueur 105 mm, hauteur ≈ 16 mm, épaisseur ≈ 11,2 mm (profils mesurés sur la photo de profil, échelle = 105 mm).
-* **Bavette : 40° sous l'axe du corps** (mesuré sur 2 photos : 38–40°), longueur visible 14,8 mm,
-  largeur 6 → 11 mm, épaisseur 1,8 mm, tous les bords arrondis R0,8.
-* **Fondu menton/bavette** : loft de sections arrondies entre la face arrière de la bavette et le ventre,
-  rayon de raccord ≈ 12 mm, raccord tangent sur 5 mm de chaque côté, pas d'arête vive.
-  Il s'affine de la largeur de la bavette jusqu'à 5 mm sous le ventre.
-* Logements d'yeux 3D Ø5,2 × 0,5 mm. Queue coupée en biais comme l'original.
+* Buse 0,4, **couches de 0,2 mm** (la pause est calée dessus), **remplissage 100 %**.
+* Supports du slicer **désactivés** (ils sont dans le modèle). Plateau 100–110 °C, enceinte fermée.
 
-![tête](docs/tete_bavette_conge.png)
+### Une seule pause : **Z = 11,6 mm**
 
-## Impression (ABS)
+La rainure du fil et les 7 puits de billes sont **tous ouverts jusqu'au même plan** (Z = 11,6).
+À la pause, rien de ce que tu poses ne dépasse ce plan :
 
-* Buse 0,4, **couches de 0,2 mm (obligatoire : les pauses sont calées dessus)**.
-* **Remplissage 100 %** : sinon l'ABS enferme de l'air et l'équilibre calculé ne tient plus.
-* Supports **du slicer désactivés** (ils sont dans le modèle, avec un mur plein sous la bavette).
-  Plateau 100–110 °C, enceinte fermée. Activer le **Z-hop (0,4 mm)** sur les déplacements.
+| Insert posé au fond de son logement | Haut de l'insert | Buse à la reprise | Garde |
+|---|---|---|---|
+| Billes Ø5 (puits Ø5,4) | 11,1 | 11,8 | **0,7 mm** |
+| Fil Ø1,6 (rainure 2,1 mm de large, fond à −1,0) | 9,4 | 11,8 | **2,4 mm** |
+| Œillets et épingle (dans le vide, hors du corps) | ≈ 9,4 | 11,8 | **2,4 mm** |
 
-### Pauses
+La 1re couche après la pause fait un pont au-dessus des puits (Ø5,4) et de la rainure (2,1 mm).
+Une bille ne peut pas sortir de son puits par le haut, donc la buse ne peut pas la toucher.
 
-| Pause | Z | À faire |
-|---|---|---|
-| **1** | **9,8 mm** (avant la couche qui commence à 9,8) | poser l'**armature Ø1,6** dans la rainure, **bien à plat** |
-| **2** | **11,6 mm** | une goutte de cyano au fond de chaque puits, puis **une bille Ø5 dans chacun des 7 puits** |
+**À la pause :**
+1. Poser l'armature au fond de sa rainure (jeu 0,5 mm sur le Ø → elle tombe sans forcer).
+2. Une petite goutte de **cyano gel** tous les ~15 mm sur le fil, contre le fond : la rainure est ouverte
+   au-dessus du fil jusqu'au plan de pause, il faut donc coller le fil pour qu'il ne flotte pas.
+3. Une goutte de cyano au fond de chaque puits, puis **une bille par puits**.
+4. Vérifier que rien ne dépasse (règle posée à plat), relancer.
 
-Garde entre la buse et les inserts, au moment de la reprise (plan médian à Z = 8,8) :
+**Zones laissées ouvertes (normal) :** la queue, à partir de x ≈ 77 mm, est plus fine que le plan de
+pause. La rainure ne peut pas y être refermée, elle débouche donc franchement sur le flanc du dessus.
+Même chose à la sortie du nez et aux deux pieds de l'épingle ventrale (≈ 1 mm).
+**Après l'impression**, garnir ces rainures à la pâte époxy ou au jus d'ABS (ABS + acétone, *pas pendant
+l'impression*), puis poncer. La tenue mécanique vient du fil traversant (ligne → hameçons), pas du plastique.
 
-| Insert | Haut de l'insert posé | Z de pause | Buse sur la 1re couche après pause | Garde |
-|---|---|---|---|---|
-| Fil Ø1,6 (rainure ±1,0) | 8,8 + 0,6 = 9,4 | 9,8 | 10,0 | **0,6 mm** |
-| Bille Ø5 (puits Ø5,4, fond à −2,7) | 8,8 + 2,3 = 11,1 | 11,6 | 11,8 | **0,7 mm** |
+![queue](docs/queue_rainure_ouverte.png)
 
-Même une bille soulevée ne peut pas dépasser le haut du puits (11,6), et la buse reprend à 11,8 au
-minimum. Le seul vrai risque, c'est un **fil qui n'est pas plan** : les œillets et l'épingle
-dépassent à l'horizontale dans le vide à Z ≈ 8,8 et doivent rester sous 9,8. Vérifie-le à la
-règle avant de relancer.
+## Lest et équilibre
 
-La 1re couche après chaque pause fait un pont au-dessus de la rainure (1,9 mm) et des puits (5,4 mm).
+* Billes **figées** (collées, une par puits) dans le plan de symétrie : rien ne bouge en nage,
+  rien ne fait gîter le leurre.
+* **Roulis** : billes sous la tige, CG **2,0 mm sous le centre de carène** (hameçons montés).
+* **Tangage** : l'hameçon de queue fait piquer l'arrière. Les puits et la position de l'épingle
+  sont choisis pour une assiette au repos quasi horizontale :
 
-## Lest, équilibre (roulis et tangage)
+| Billes Ø5 (7) | Masse billes | Total avec 2 hameçons (0,9 g) | Assiette au repos |
+|---|---|---|---|
+| **Tungstène** (prévu) | 8,7 g | **≈ 22,2 g** | **−3° (quasi à plat)** |
+| Plomb | 5,2 g | 18,7 g | −38° (queue en bas) |
+| Acier | 3,6 g | 17,1 g | −51° (queue en bas) |
 
-* Les billes sont **figées** (une bille par puits, collée) : elles ne roulent pas et ne déplacent pas le
-  centre de gravité pendant la nage. Elles sont rangées dans le plan de symétrie, donc rien ne fait
-  gîter le leurre latéralement.
-* **Roulis** : billes sous la tige (y ≈ −0,3), sous le centre de carène (y = +1,96). Avec les hameçons,
-  le CG est **2,0 mm sous la carène** : le leurre se remet dos en haut.
-* **Tangage** : au repos, le leurre s'incline jusqu'à mettre le CG à la verticale du centre de carène.
-  L'hameçon de queue (≈ 67 mm derrière la carène) fait piquer la queue ; avec 9 billes, on aurait
-  ≈ 23° **queue en bas**. Le script retire donc les puits arrière jusqu'à une assiette
-  légèrement nez en bas : **7 puits** (x = 13,75 → 57,75 mm), assiette ≈ **+1,5° nez en bas**.
+Avec d'autres billes ou d'autres hameçons, changer `bille_mat` / `hamecon_g` dans `P` et relancer :
+le nombre de puits se recalcule. Les 32 g de l'original ne sont pas atteignables dans ce volume (10,5 cm³)
+avec des billes de 5 mm.
 
-| Billes Ø5 (7) | Masse billes | Total sans hameçons | Total avec 2 hameçons | Assiette au repos (hameçons) |
-|---|---|---|---|---|
-| **Tungstène** (prévu) | 8,7 g | 21,0 g | **≈ 22,8 g** | **+1,5°** |
-| Plomb | 5,2 g | 17,5 g | 19,3 g | −37° (queue en bas) |
-| Acier | 3,6 g | 15,9 g | 17,7 g | −51° (queue en bas) |
+## Armature (fil inox Ø1,6)
 
-L'équilibre est calé pour **du tungstène et des hameçons de 0,9 g chacun (triple + anneau)**. Avec un autre
-matériau ou d'autres hameçons, changer `bille_mat` / `hamecon_g` dans `P` et relancer :
-le nombre de puits se recalcule. L'écart CG/carène reste petit (2 mm), donc l'assiette est sensible :
-0,1 mm de décalage du CG en longueur, c'est environ 3°. Pour la nage elle-même, c'est la traction de
-la ligne et la bavette qui commandent ; l'assiette joue surtout sur la coulée et les pauses.
-
-⚠️ **Les 32 g de l'original ne sont pas atteignables** dans ce volume (10,5 cm³) avec des billes de 5 mm :
-le ventre est trop étroit pour plus de puits avec une paroi correcte (≥ 0,8 mm).
-
-## Armature
-
-Fil **inox Ø1,6**, longueur développée 169 mm → couper 190 mm. Œillets et épingle sur **foret Ø3**.
-Plan coté et gabarit 1:1 : `out/armature_plan.pdf`.
+Longueur développée 166 mm → **couper 190 mm**. Tous les plis se font **autour des clous** du gabarit
+(rayon de fibre neutre 2,26 mm), donc le gabarit, le plan et la rainure du leurre ont exactement la même forme.
 
 ![plan](out/armature_plan_p1.png)
 
-* Même topologie que le croquis (œillet de nez avec retour, tige, épingle ventrale en U, tige, œillet de
-  queue avec retour), mais la **tige est coudée** : montée de 45° derrière la tête jusqu'à +4,2 mm, puis
-  descente de 19° avant la queue. Elle passe ainsi au-dessus du lest, qui reste bas.
-* Cotes pour ce corps : **G = 6,2 mm ext.**, **H = 13,1 mm** (axe de tige → bas du U, 3 mm de jour sous
-  le ventre pour l'anneau brisé), entraxe nez → épingle **34,8 mm**, épingle → queue **74,4 mm**,
-  retours 4,6 mm (nez) et 8,3 mm (queue).
+* Œillets nez/queue : un tour autour des pions 1 et 9, brins jointifs, retours recoupés aux traits gravés.
+* Épingle ventrale : autour des pions 4-5-6, **G = 6,1 mm ext.**, **H = 13,2 mm** (axe tige → bas du U),
+  3 mm de jour sous le ventre pour l'anneau brisé. Axe à 33,5 mm du nez (original : ≈ 33).
+* Tige coudée (pions 2-3 : 45°, pions 7-8 : 21°) pour passer au-dessus du lest.
+
+## Gabarit de pliage à pions
+
+![gabarit](docs/gabarit_pions.png)
+![gabarit dessous](docs/gabarit_pions_dessous.png)
+
+* 9 trous Ø3,0 pour clous Ø2,92 (serrage léger en FDM), **lamage Ø6,4 × 1,4 mm par dessous** pour la tête Ø6 :
+  le clou se glisse par dessous, sa tête reste noyée et le gabarit repose à plat sur ses bossages.
+* Matière minimale : semelle de 2,4 mm qui suit le fil (ruban de 7,2 mm) + bossages Ø10,4 × 6 mm sous les pions
+  (4,6 mm de clou tenu). **≈ 4,6 cm³ (≈ 5 g)**, 121 × 20 × 6 mm.
+* Tracé du fil gravé sur le dessus (0,6 mm) : le fil s'y couche et reste plan. Traits de coupe au bout des retours.
+* Impression : fichier déjà retourné (dessus contre le plateau), sans support, PLA/PETG/ABS, 4 périmètres.
+* Si la tête de tes clous est plus épaisse que 1,2 mm : `tete_h` dans `G`. Si le serrage est trop dur ou trop
+  lâche : `trou_d`.
+
+Mode opératoire détaillé et coordonnées des pions : page 2 de `out/armature_plan.pdf`.
+L'inox revient un peu après pliage : sur-plier légèrement, puis reposer le fil sur les pions pour contrôler.
+
+## Géométrie relevée
+
+* Longueur 105 mm, hauteur ≈ 16 mm, épaisseur ≈ 11,2 mm (profils mesurés sur photo).
+* Bavette à 40° sous l'axe, longueur visible 14,8 mm, largeur 6 → 11 mm, épaisseur 1,8 mm, bords R0,8.
+* Fondu menton/bavette : loft de sections arrondies, rayon de raccord ≈ 12 mm, sans arête vive.
+
+![tête](docs/dessous_bavette_conge.png)
 
 ## Limites connues
 
-* Profils relevés à la main sur photo (±0,5 mm), largeur estimée (pas de vue de dessus à plat) :
-  tables `DOS`, `VENTRE`, `DEMI_LARGEUR` dans `cad/geom.py`.
-* Nage non testée : la bavette se règle dans `P` (`bav_angle`, `bav_longueur`, `bav_larg_max`).
+* Profils relevés à la main sur photo (±0,5 mm) et largeur estimée : tables de `cad/geom.py`.
+* Nage non testée : bavette réglable dans `P` (`bav_angle`, `bav_longueur`, `bav_larg_max`).
 * Le slicer peut signaler quelques triangles dégénérés (maillage) : la réparation automatique suffit.

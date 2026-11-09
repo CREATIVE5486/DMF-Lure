@@ -1,9 +1,9 @@
 """Leurre type minnow 105 mm (relevé sur Jackson Artist FR105 HW) – CadQuery.
 
 Impression FDM ABS, couché sur le flanc (plan de symétrie parallèle au plateau),
-surélevé sur supports dédiés, avec 2 pauses :
-  pause 1 : poser l'armature inox dans sa rainure
-  pause 2 : poser les billes Ø5 mm dans leurs puits
+surélevé sur supports dédiés, avec UNE SEULE pause : armature inox + billes Ø5
+sont posées en même temps ; leurs logements sont tous ouverts jusqu'au même plan
+(haut des puits), donc rien ne dépasse quand la buse reprend.
 
 Lancer :  python3 cad/lure_artist105.py   -> fichiers dans out/
 """
@@ -40,11 +40,12 @@ P = dict(
     bille_d=5.0, bille_jeu=0.2, paroi=0.6,   # paroi entre puits
     paroi_ext=0.8,          # paroi mini puits / peau extérieure (2 périmètres)
     # rainure fil
-    fil_jeu=0.15,
+    fil_jeu_diam=0.5,       # jeu sur le Ø du fil dans la rainure (0.4 à 0.6)
+    fil_jeu_fond=0.1,       # jeu sous le fil (fond de rainure)
     # hameçons (triple + anneau) pour le bilan d'équilibre
     hamecon_g=0.9,
     bille_mat="tungstene",   # matériau utilisé pour l'équilibrage
-    assiette_cible=(0.0, 10.0),  # assiette au repos visée, hameçons montés (° nez en bas)
+    assiette_cible=(-3.0, 10.0),  # assiette au repos visée, hameçons montés (° nez en bas)
     # impression
     couche=0.2,
     z_mini=3.0,             # hauteur du point le plus bas de la pièce au-dessus du plateau
@@ -193,20 +194,76 @@ def oeils(body):
 # ======================================================================
 # Cavités : rainure fil + puits de billes
 # ======================================================================
+def r_rainure():
+    return ARM.d / 2 + P["fil_jeu_diam"] / 2
+
+
+def _fond_rainure():
+    c = P["couche"]
+    return -c * math.ceil((ARM.d / 2 + P["fil_jeu_fond"]) / c - 1e-9)
+
+
+def troncons_debouchants():
+    """Portions du fil où le corps est trop fin pour refermer la rainure au-dessus.
+
+    La rainure monte jusqu'au plan de pause (haut des puits). Là où la peau qui
+    resterait au-dessus serait < paroi_ext, on ouvre franchement la rainure sur le
+    flanc (pas de peau d'une couche qui casse) : ces zones sont à garnir à la
+    pause (pâte ABS/acétone ou époxy).
+    """
+    zp = puits_haut()
+    r = r_rainure()
+    pe = P["paroi_ext"] + 0.4
+    pts = ARM.pts
+    marque = []
+    for i, (x, y) in enumerate(pts):
+        j = min(i + 1, len(pts) - 1)
+        k = max(i - 1, 0)
+        tx, ty = pts[j][0] - pts[k][0], pts[j][1] - pts[k][1]
+        n = math.hypot(tx, ty) or 1
+        nx, ny = -ty / n, tx / n
+        thin = False
+        for o in (-r, -r / 2, 0, r / 2, r):
+            xx, yy = x + nx * o, y + ny * o
+            if dos(xx) > yy > ventre(xx) and demi_largeur_a(xx, yy) < zp + pe:
+                thin = True
+        marque.append(thin)
+    runs, cur = [], []
+    for p, m in zip(pts, marque):
+        if m:
+            cur.append(p)
+        elif cur:
+            runs.append(cur)
+            cur = []
+    if cur:
+        runs.append(cur)
+    return [rn for rn in runs if len(rn) >= 1]
+
+
 def rainure_fil():
-    r = ARM.d / 2 + P["fil_jeu"]
+    """Rainure du fil : jeu fil_jeu_diam sur le Ø, ouverte vers le haut jusqu'au plan de pause."""
+    r = r_rainure()
     w = cq.Wire.makePolygon([cq.Vector(x, y, 0) for x, y in ARM.pts])
     face = cq.Face.makeFromWires(w.offset2D(r, "arc")[0])
-    hz = P["couche"] * math.ceil((ARM.d / 2 + P["fil_jeu"]) / P["couche"] - 1e-9)
-    sol = cq.Solid.extrudeLinear(face, cq.Vector(0, 0, 2 * hz)).translate((0, 0, -hz))
-    return cq.Workplane("XY").add(sol), hz
+    z0 = _fond_rainure()
+    zp = puits_haut()
+    sol = cq.Workplane("XY").add(
+        cq.Solid.extrudeLinear(face, cq.Vector(0, 0, zp - z0)).translate((0, 0, z0)))
+    for rn in troncons_debouchants():
+        if len(rn) == 1:
+            rn = [(rn[0][0] - 0.3, rn[0][1]), (rn[0][0] + 0.3, rn[0][1])]
+        wr = cq.Wire.makePolygon([cq.Vector(x, y, 0) for x, y in rn])
+        fr = cq.Face.makeFromWires(wr.offset2D(r, "arc")[0])
+        ouv = cq.Solid.extrudeLinear(fr, cq.Vector(0, 0, 20)).translate((0, 0, z0))
+        sol = sol.union(cq.Workplane("XY").add(ouv))
+    return sol, zp
 
 
 def positions_billes():
     rb = P["bille_d"] / 2 + P["bille_jeu"]
     paroi = P["paroi"]
     ztop = puits_haut()
-    r_fil = ARM.d / 2 + P["fil_jeu"]
+    r_fil = r_rainure()
 
     def ok(xc, yc):
         if ARM.distance_point(xc, yc) < rb + paroi + r_fil:
@@ -369,41 +426,40 @@ def bilan(piece, plein, pos):
 
 # ======================================================================
 def equilibrer(plein, rain, pos_tous):
-    """Retire des puits à l'arrière jusqu'à obtenir l'assiette visée (hameçons montés).
-
-    Les billes à l'arrière + l'hameçon de queue font piquer la queue : on garde le
-    maximum de billes compatible avec une assiette légèrement nez en bas.
+    """Choisit le nombre de puits (on retire par l'arrière) donnant l'assiette au repos
+    la plus proche du centre de `assiette_cible`, hameçons montés, en gardant le
+    maximum de billes parmi les solutions dans la plage.
     """
     rb = P["bille_d"] / 2 + P["bille_jeu"]
-    v_puits = (2 / 3 * math.pi * rb ** 3 + math.pi * rb ** 2 * puits_haut())
+    zt = puits_haut()
+    v_sph, v_cyl = 2 / 3 * math.pi * rb ** 3, math.pi * rb ** 2 * zt
+    v_puits = v_sph + v_cyl
     vb = 4 / 3 * math.pi * (P["bille_d"] / 2) ** 3 / 1000
-    pv = plein.val()
-    cb = pv.Center()
-    v_rain = rain.val().Volume()
-    v_abs = pv.Volume() - v_rain
+    pv, rv = plein.val(), rain.intersect(plein).val()
+    cp, cr = pv.Center(), rv.Center()
+    Vp, Vr = pv.Volume(), rv.Volume()
     l_fil = ARM.longueur()
     m_fil = math.pi * (ARM.d / 2) ** 2 * l_fil / 1000 * DENS["inox"]
     gx = sum((a[0] + b[0]) / 2 * math.dist(a, b) for a, b in zip(ARM.pts, ARM.pts[1:])) / l_fil
     gy = sum((a[1] + b[1]) / 2 * math.dist(a, b) for a, b in zip(ARM.pts, ARM.pts[1:])) / l_fil
     lo, hi = P["assiette_cible"]
-    meilleur = None
-    pos = list(pos_tous)
-    while pos:
-        m_abs = (v_abs - len(pos) * v_puits) / 1000 * DENS["ABS"]
-        ms = [(m_abs, cb.x, cb.y), (m_fil, gx, gy)] + hamecons()
+    res = []
+    for n in range(len(pos_tous), 0, -1):
+        pos = pos_tous[:n]
+        V = Vp - Vr - n * v_puits
+        mx = cp.x * Vp - cr.x * Vr - sum(x for x, _ in pos) * v_puits
+        my = cp.y * Vp - cr.y * Vr - sum(y for _, y in pos) * v_puits
+        m_abs = V / 1000 * DENS["ABS"]
+        ms = [(m_abs, mx / V, my / V), (m_fil, gx, gy)] + hamecons()
         ms += [(vb * DENS[P["bille_mat"]], x, y) for x, y in pos]
         mt = sum(m for m, _, _ in ms)
         xcg = sum(m * x for m, x, _ in ms) / mt
         ycg = sum(m * y for m, _, y in ms) / mt
-        ang = math.degrees(math.atan2(cb.x - xcg, cb.y - ycg))
-        if meilleur is None or abs(ang - (lo + hi) / 2) < abs(meilleur[1] - (lo + hi) / 2):
-            meilleur = (list(pos), ang)
-        if lo <= ang <= hi:
-            return list(pos), ang
-        if ang > hi:      # trop piqueur : impossible d'améliorer en retirant à l'arrière
-            break
-        pos.pop()         # retire le puits le plus en arrière
-    return meilleur
+        res.append((pos, math.degrees(math.atan2(cp.x - xcg, cp.y - ycg))))
+    dans = [r for r in res if lo <= r[1] <= hi]
+    if dans:
+        return dans[0]                      # le plus de billes dans la plage
+    return min(res, key=lambda r: abs(r[1] - (lo + hi) / 2))
 
 
 def construire():
@@ -493,10 +549,20 @@ def exporter(r):
     export_3mf(os.path.join(OUT, "plateau.3mf"),
                [("leurre", piece_imp), ("supports", sup_imp)])
     b = bilan(r["piece"], r["plein"], r["pos"])
+    rb = P["bille_d"] / 2 + P["bille_jeu"]
+    zp = z_mid + puits_haut()
+    haut_bille = z_mid - rb + P["bille_d"]          # bille posée au fond de son puits
+    haut_fil = z_mid + _fond_rainure() + ARM.d       # fil posé au fond de la rainure
     pauses = dict(
         z_plan_median=round(z_mid, 2),
-        pause1_fil=round(z_mid + r["hz"], 2),
-        pause2_billes=round(z_mid + puits_haut(), 2),
+        pause_unique=round(zp, 2),
+        haut_bille_posee=round(haut_bille, 2),
+        haut_fil_pose=round(haut_fil, 2),
+        buse_reprise=round(zp + P["couche"], 2),
+        garde_billes=round(zp + P["couche"] - haut_bille, 2),
+        garde_fil=round(zp + P["couche"] - haut_fil, 2),
+        troncons_ouverts_mm=[round(sum(math.dist(a, b) for a, b in zip(rn, rn[1:])), 1)
+                             for rn in troncons_debouchants()],
         hauteur_totale=round(z_mid + r["plein"].val().BoundingBox().zmax, 2),
     )
     rapport = dict(pauses=pauses, bilan=b, billes=r["pos"], puits_possibles=r["pos_tous"], conge=dict(

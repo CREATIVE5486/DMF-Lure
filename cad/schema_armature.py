@@ -146,7 +146,7 @@ def main():
         k = 2.0
         ox, oy = 22, 115
         dessin(ax, a, k, ox, oy, a.d)
-        ax.text(10, 200, "Armature fil inox – leurre minnow 105 (impression ABS couché, pause unique)",
+        ax.text(10, 200, "Armature fil inox – leurre minnow 105 (demi-coques ABS)",
                 fontsize=12, weight="bold")
         ax.text(10, 193.5, f"Échelle 2:1  ·  cotes en mm  ·  fil inox Ø{a.d:g} (304/316)  ·  "
                 f"pions = clous Ø{a.clou_d:g} (gabarit out/gabarit_pions_impression.stl)  ·  "
@@ -157,7 +157,7 @@ def main():
             "• Tout le fil est dans UN SEUL PLAN : il se couche dans la gravure du gabarit ; contrôler à plat après chaque pli.",
             "• Œillets : brins jointifs (le retour se loge contre la tige) ; recouper les retours sur les traits gravés du gabarit.",
             "• L'inox revient un peu après pliage : sur-plier de quelques degrés, puis vérifier en reposant le fil sur les pions.",
-            "• Rainure du leurre : jeu 0,5 mm sur le Ø (paramètre fil_jeu_diam) → le fil rentre même avec de petits écarts.",
+            "• Demi-coques : le fil se clipse dans la coque A (points de serrage), la coque B a du jeu pour absorber un fil imparfait.",
         ]
         for i, t in enumerate(notes):
             ax.text(10, 40 - i * 5, t, fontsize=7.5)
@@ -204,7 +204,7 @@ def main():
             "4. Continuer : pions 7 et 8 (descente arrière), puis faire le tour du pion 9 (œillet de queue).",
             "5. Sortir l'armature, pincer jointifs les brins des œillets et de l'épingle,",
             "   recouper les retours aux traits gravés.",
-            "6. Mettre à plat (étau / maillet sur bois) et présenter à blanc dans la rainure imprimée.",
+            "6. Mettre à plat (étau / maillet sur bois) et clipser à blanc dans la coque A.",
         ]
         for i, t in enumerate(conseils):
             ax.text(10, 92 - i * 5, t, fontsize=7.5, weight="bold" if i == 0 else None)

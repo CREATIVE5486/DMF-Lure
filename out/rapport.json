@@ -1,23 +1,131 @@
 {
-  "pauses": {
-    "z_plan_median": 8.8,
-    "pause_unique": 11.6,
-    "haut_bille_posee": 11.1,
-    "haut_fil_pose": 9.4,
-    "buse_reprise": 11.8,
-    "garde_billes": 0.7,
-    "garde_fil": 2.4,
-    "troncons_ouverts_mm": [
-      21.9,
-      1.1,
-      1.1,
-      48.0
+  "billes": [
+    [
+      14.0,
+      -0.82
     ],
-    "hauteur_totale": 14.41
-  },
+    [
+      19.8,
+      -0.61
+    ],
+    [
+      25.6,
+      -0.5
+    ],
+    [
+      40.150000000000006,
+      -0.7
+    ],
+    [
+      45.95,
+      -0.82
+    ],
+    [
+      51.75,
+      -0.93
+    ],
+    [
+      57.55,
+      -1.05
+    ]
+  ],
+  "billes_possibles": [
+    [
+      14.0,
+      -0.82
+    ],
+    [
+      19.8,
+      -0.61
+    ],
+    [
+      25.6,
+      -0.5
+    ],
+    [
+      40.150000000000006,
+      -0.7
+    ],
+    [
+      45.95,
+      -0.82
+    ],
+    [
+      51.75,
+      -0.93
+    ],
+    [
+      57.55,
+      -1.05
+    ],
+    [
+      63.349999999999994,
+      -1.12
+    ]
+  ],
+  "pions": [
+    [
+      25.0,
+      7.3
+    ],
+    [
+      33.5,
+      4.73
+    ],
+    [
+      50.0,
+      7.4
+    ],
+    [
+      71.0,
+      -1.6
+    ]
+  ],
+  "points_serrage": [
+    [
+      2.4,
+      -0.8
+    ],
+    [
+      12.7,
+      3.9
+    ],
+    [
+      24.9,
+      4.3
+    ],
+    [
+      31.2,
+      -2.6
+    ],
+    [
+      35.9,
+      3.0
+    ],
+    [
+      47.5,
+      4.3
+    ],
+    [
+      59.6,
+      4.3
+    ],
+    [
+      71.4,
+      1.5
+    ],
+    [
+      82.7,
+      -2.7
+    ],
+    [
+      95.1,
+      -3.2
+    ]
+  ],
   "bilan": {
     "volume_ext_cm3": 10.5,
-    "masse_abs_g": 9.09,
+    "masse_abs_g": 9.75,
     "longueur_fil_mm": 165.7,
     "masse_fil_g": 2.63,
     "n_billes": 7,
@@ -30,134 +138,103 @@
     "materiaux": {
       "tungstene": {
         "masse_billes_g": 8.7,
-        "masse_totale_g": 20.4,
+        "masse_totale_g": 21.1,
         "cg": [
-          42.29,
-          0.91
+          42.13,
+          0.69
         ],
-        "gb_mm": 1.04,
-        "dx_mm": 2.39,
-        "assiette_deg": 66.4
+        "gb_mm": 1.27,
+        "dx_mm": 2.54,
+        "assiette_deg": 63.5
       },
       "tungstene_avec_hamecons": {
         "masse_billes_g": 8.7,
-        "masse_totale_g": 22.2,
+        "masse_totale_g": 22.9,
         "cg": [
-          44.78,
-          -0.08
+          44.57,
+          -0.26
         ],
-        "gb_mm": 2.03,
-        "dx_mm": -0.11,
-        "assiette_deg": -3.0
+        "gb_mm": 2.21,
+        "dx_mm": 0.11,
+        "assiette_deg": 2.7
       },
       "plomb": {
         "masse_billes_g": 5.2,
-        "masse_totale_g": 16.9,
+        "masse_totale_g": 17.6,
         "cg": [
-          43.38,
-          1.16
+          43.29,
+          0.98
         ],
-        "gb_mm": 0.8,
-        "dx_mm": 1.29,
-        "assiette_deg": 58.3
+        "gb_mm": 0.97,
+        "dx_mm": 1.39,
+        "assiette_deg": 55.0
       },
       "plomb_avec_hamecons": {
         "masse_billes_g": 5.2,
-        "masse_totale_g": 18.7,
+        "masse_totale_g": 19.4,
         "cg": [
-          46.24,
-          -0.04
+          46.06,
+          -0.16
         ],
-        "gb_mm": 2.0,
-        "dx_mm": -1.57,
-        "assiette_deg": -38.1
+        "gb_mm": 2.12,
+        "dx_mm": -1.38,
+        "assiette_deg": -33.1
       },
       "acier": {
         "masse_billes_g": 3.6,
-        "masse_totale_g": 15.3,
+        "masse_totale_g": 16.0,
         "cg": [
-          44.04,
-          1.3
+          43.97,
+          1.16
         ],
-        "gb_mm": 0.65,
-        "dx_mm": 0.63,
-        "assiette_deg": 44.2
+        "gb_mm": 0.8,
+        "dx_mm": 0.71,
+        "assiette_deg": 41.5
       },
       "acier_avec_hamecons": {
         "masse_billes_g": 3.6,
-        "masse_totale_g": 17.1,
+        "masse_totale_g": 17.8,
         "cg": [
-          47.09,
-          -0.02
+          46.91,
+          -0.11
         ],
-        "gb_mm": 1.98,
-        "dx_mm": -2.42,
-        "assiette_deg": -50.7
+        "gb_mm": 2.06,
+        "dx_mm": -2.24,
+        "assiette_deg": -47.4
       }
     }
   },
-  "billes": [
-    [
-      14.75,
-      -0.3
+  "coque": {
+    "jeu_diam": 0.5,
+    "prof_A": 0.9,
+    "prof_B": 1.1,
+    "serrage_l": 1.6,
+    "serrage_long": 3.0,
+    "serrage_pas": 12.0,
+    "bille_jeu": 0.1,
+    "pion_d": 2.4,
+    "pion_trou_d": 2.6,
+    "pion_prof": 2.3,
+    "pion_long": 4.2,
+    "pions_fenetres": [
+      [
+        10.0,
+        26.0
+      ],
+      [
+        29.0,
+        38.0
+      ],
+      [
+        44.0,
+        56.0
+      ],
+      [
+        62.0,
+        80.0
+      ]
     ],
-    [
-      20.75,
-      -0.19
-    ],
-    [
-      26.75,
-      -0.1
-    ],
-    [
-      40.25,
-      -0.31
-    ],
-    [
-      46.25,
-      -0.32
-    ],
-    [
-      52.25,
-      -0.34
-    ],
-    [
-      58.25,
-      -0.26
-    ]
-  ],
-  "puits_possibles": [
-    [
-      14.75,
-      -0.3
-    ],
-    [
-      20.75,
-      -0.19
-    ],
-    [
-      26.75,
-      -0.1
-    ],
-    [
-      40.25,
-      -0.31
-    ],
-    [
-      46.25,
-      -0.32
-    ],
-    [
-      52.25,
-      -0.34
-    ],
-    [
-      58.25,
-      -0.26
-    ]
-  ],
-  "conge": {
-    "rayon": 12.2
+    "bille_y_max": 0.5
   },
   "armature": {
     "xc_n": -1.76,
@@ -172,44 +249,69 @@
     "ys": 4.35,
     "xj": 2.1136697944570244
   },
-  "parametres": {
-    "bav_angle": 40.0,
-    "bav_sortie": [
-      2.4,
-      -3.5
-    ],
-    "bav_noyee": 1.2,
-    "bav_longueur": 14.8,
-    "bav_larg_racine": 6.0,
-    "bav_larg_max": 11.0,
-    "bav_ep": 1.8,
-    "conge_tangente": 5.0,
-    "conge_demi_larg": 2.6,
-    "oeil_pos": [
-      7.7,
-      2.2
-    ],
-    "oeil_d": 5.2,
-    "oeil_prof": 0.5,
-    "bille_d": 5.0,
-    "bille_jeu": 0.2,
-    "paroi": 0.6,
-    "paroi_ext": 0.8,
-    "fil_jeu_diam": 0.5,
-    "fil_jeu_fond": 0.1,
-    "hamecon_g": 0.9,
-    "bille_mat": "tungstene",
-    "assiette_cible": [
-      -3.0,
-      10.0
-    ],
-    "couche": 0.2,
-    "z_mini": 3.0,
-    "sup_jeu_z": 0.25,
-    "sup_pas": 2.5,
-    "sup_ep": 0.8,
-    "sup_retrait": 1.2,
-    "sup_semelle": 0.6,
-    "sup_bord": 3.0
-  }
+  "pions_pliage": [
+    {
+      "nom": "œillet de nez",
+      "c": [
+        -1.76,
+        0.0
+      ]
+    },
+    {
+      "nom": "coude avant bas",
+      "c": [
+        7.06,
+        1.46
+      ]
+    },
+    {
+      "nom": "coude avant haut",
+      "c": [
+        14.09,
+        2.09
+      ]
+    },
+    {
+      "nom": "épingle gauche",
+      "c": [
+        28.98,
+        2.09
+      ]
+    },
+    {
+      "nom": "épingle ventrale",
+      "c": [
+        33.5,
+        -5.81
+      ]
+    },
+    {
+      "nom": "épingle droite",
+      "c": [
+        38.02,
+        2.09
+      ]
+    },
+    {
+      "nom": "coude arrière haut",
+      "c": [
+        63.59,
+        2.09
+      ]
+    },
+    {
+      "nom": "coude arrière bas",
+      "c": [
+        84.41,
+        -0.94
+      ]
+    },
+    {
+      "nom": "œillet de queue",
+      "c": [
+        107.39,
+        -2.4
+      ]
+    }
+  ]
 }

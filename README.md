@@ -2,7 +2,7 @@
 
 Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm), imprimé en
 **deux demi-coques** (coupe au plan de symétrie) assemblées au **jus d'ABS**, avec **armature inox Ø1,6
-traversante**, **7 billes de tungstène Ø5** et **pions de centrage ABS**. La bavette fait corps avec le
+traversante**, **6 billes de tungstène Ø5** et **pions de centrage ABS**. La bavette fait corps avec le
 leurre, avec un fondu arrondi sous le menton. L'armature se plie sur un **gabarit à pions** (clous Ø2,92).
 
 ![éclaté](docs/demi_coques_eclate.png)
@@ -45,7 +45,7 @@ Paramètres : `C` dans `cad/demi_coques.py` (rainure, serrage, pions), `P` dans 
 ## Assemblage
 
 1. Ébavurer, tester à blanc : fil clipsé dans A, billes, pions, fermer avec B.
-2. Une goutte de cyano dans chaque logement de A, poser les **7 billes**.
+2. Une goutte de cyano dans chaque logement de A, poser les **6 billes**.
 3. **Clipser l'armature** dans A (l'épingle ventrale et les œillets sortent par les encoches).
 4. Enfoncer les **4 pions** dans A.
 5. Jus d'ABS (ABS + acétone, consistance crème) au pinceau sur les deux faces planes, en évitant la rainure.
@@ -57,16 +57,18 @@ traversant, pas par la colle.
 
 ## Lest et équilibre
 
-* 7 logements sphériques **sous la tige** (y ≈ −0,5 à −1,1), moitié dans chaque coque, billes collées :
+* 6 logements sphériques **sous la tige** (y ≈ −0,5 à −1,1), moitié dans chaque coque, billes collées :
   rien ne bouge en nage, rien ne fait gîter le leurre.
-* **Roulis** : CG **2,2 mm sous le centre de carène** (hameçons montés).
+* **Roulis** : CG **2,1 mm sous le centre de carène** (hameçons montés).
 * **Tangage** : le nombre de billes est choisi pour une assiette au repos quasi horizontale.
 
-| Billes Ø5 (7) | Masse billes | Total avec 2 hameçons (0,9 g) | Assiette au repos |
+| Billes tungstène Ø5 | Masse billes | Total avec 2 hameçons (0,9 g) | Assiette au repos |
 |---|---|---|---|
-| **Tungstène** (prévu) | 8,7 g | **≈ 22,9 g** | **+2,7° (très léger nez en bas)** |
-| Plomb | 5,2 g | 19,4 g | −33° (queue en bas) |
-| Acier | 3,6 g | 17,8 g | −47° (queue en bas) |
+| **6** (retenu) | 7,5 g | **≈ 21,9 g** | **+9° (léger nez en bas)** |
+| 7 | 8,7 g | ≈ 23,1 g | −10° (léger queue en bas) |
+
+La nouvelle bavette (plus épaisse, plus de matière à l'avant) a déplacé l'équilibre : la 7e bille fait
+maintenant pencher la queue. Pour la garder, mettre `assiette_cible=(-12.0, 10.0)` dans `P`.
 
 Autre matériau ou autres hameçons : `bille_mat` / `hamecon_g` dans `P`, relancer.
 
@@ -86,10 +88,26 @@ Longueur développée 166 mm → **couper 190 mm**. Tous les plis se font autour
 ## Géométrie relevée
 
 * Longueur 105 mm, hauteur ≈ 16 mm, épaisseur ≈ 11,2 mm (profils mesurés sur photo, `cad/geom.py`).
-* Bavette à 40° sous l'axe, longueur visible 14,8 mm, largeur 6 → 11 mm, épaisseur 1,8 mm, bords R0,8.
-* Fondu menton/bavette : loft de sections arrondies, rayon de raccord ≈ 12 mm, sans arête vive.
 
-![tête](docs/dessous_bavette_conge.png)
+### Bavette
+
+| | |
+|---|---|
+| Angle | 40° sous l'axe du corps |
+| Longueur visible | 14,8 mm |
+| Forme en plan | col 6 mm (sur 2 mm) → flancs concaves en cloche → **11 mm** maxi à 10,5 mm → bout plat arrondi de 6 mm |
+| Épaisseur | **4 mm à la racine → 2 mm au bout** (face avant plane, la face arrière converge) |
+| Nervure | **en V sous la bavette**, 1,2 mm de saillie à la racine, 4,4 mm de large, s'efface à 7 mm |
+| Dessus | plat, **relevé de 1 mm sur les 4 derniers mm** avant le menton |
+| Bords | chants latéraux R0,6, bord d'attaque arrondi |
+| Fondu menton | loft de sections arrondies sous la bavette, rayon ≈ 16 mm |
+
+Tout se règle dans `P` (`bav_*`) de `cad/lure_artist105.py`.
+
+![bavette profil](docs/bavette_profil.png)
+![bavette face](docs/bavette_face.png)
+![bavette dessus](docs/bavette_dessus.png)
+![dessous](docs/dessous_bavette_conge.png)
 
 ## Limites connues
 

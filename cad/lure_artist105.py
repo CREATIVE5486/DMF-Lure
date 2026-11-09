@@ -29,9 +29,25 @@ P = dict(
     bav_sortie=(2.4, -3.5),  # point où l'axe de la bavette sort du menton
     bav_noyee=1.2,          # longueur noyée dans la tête
     bav_longueur=14.8,      # longueur visible (sortie -> extrémité)
-    bav_larg_racine=6.0,
-    bav_larg_max=11.0,
-    bav_ep=1.8,             # épaisseur (4 périmètres buse 0.4)
+    # forme en plan (v = distance depuis la sortie du menton)
+    bav_larg_col=6.0,       # largeur du col à la sortie du menton
+    bav_col_long=2.0,       # longueur du col (largeur constante)
+    bav_larg_max=11.0,      # largeur maxi
+    bav_pos_max=10.5,       # position de la largeur maxi
+    bav_larg_bout=6.0,      # largeur du bout plat (coins arrondis)
+    bav_flare=1.6,          # >1 : flancs concaves (évasement en cloche)
+    # épaisseur (biseau) : face avant plane, face arrière qui converge
+    bav_ep_racine=4.0,
+    bav_ep_bout=2.0,
+    bav_arrondi=0.6,        # rayon des chants latéraux
+    # nervure centrale en V sous la bavette
+    bav_nervure_h=1.2,      # saillie à la racine
+    bav_nervure_larg=4.4,   # largeur de base
+    bav_nervure_long=7.0,   # s'efface à cette distance de la sortie
+    # face avant : remontée vers le corps sur les derniers mm
+    bav_releve=1.0,
+    bav_releve_long=4.0,
+    bav_racine_prof=2.5,    # enfoncement supplémentaire de la racine dans la tête
     conge_tangente=5.0,     # longueur de raccord du congé sous le menton
     conge_demi_larg=2.6,    # demi-largeur du congé (quille)
     # œil 3D
@@ -88,84 +104,165 @@ def corps():
     return body
 
 
-def bavette():
+def loft(wires, ruled=False):
+    """Loft sans « mise en compatibilité » OCC (qui retourne parfois des sections et tord le solide)."""
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+    b = BRepOffsetAPI_ThruSections(True, ruled, 1e-6)
+    b.CheckCompatibility(False)
+    for w in wires:
+        b.AddWire(w.wrapped)
+    b.Build()
+    return cq.Solid(b.Shape())
+
+
+def _bav_repere():
     a = math.radians(P["bav_angle"])
-    d = cq.Vector(-math.cos(a), -math.sin(a), 0)      # vers l'avant-bas
-    n = cq.Vector(-math.sin(a), math.cos(a), 0)       # normale (face avant/haut)
+    d = cq.Vector(-math.cos(a), -math.sin(a), 0)      # le long de la bavette (avant-bas)
+    n = cq.Vector(-math.sin(a), math.cos(a), 0)       # normale côté face avant (dessus)
     sx, sy = P["bav_sortie"]
     r0 = cq.Vector(sx, sy, 0) - d * P["bav_noyee"]
-    L = P["bav_noyee"] + P["bav_longueur"]
-    wr, wm = P["bav_larg_racine"] / 2, P["bav_larg_max"] / 2
-    um = L - wm
-    pl = cq.Plane(origin=r0, xDir=d, normal=n)
-    lip = (cq.Workplane(pl)
-           .moveTo(0, -wr).lineTo(um, -wm)
-           .threePointArc((L, 0), (um, wm))
-           .lineTo(0, wr).close()
-           .extrude(P["bav_ep"] / 2, both=True))
-    # arrondi des arêtes de la bavette (bord d'attaque / contour)
-    try:
-        lip = lip.edges().fillet(0.8)
-    except Exception as e:
-        print("bavette : arrondi ignoré", e)
-    return lip, (r0, d, n, L)
+    O = r0 + n * 0.9                                   # plan de la face avant
+    return d, n, r0, O
 
 
-def conge(bav_geom):
-    """Congé concave entre la face arrière (dessous) de la bavette et le ventre."""
-    r0, d, n, L = bav_geom
-    e = P["bav_ep"] / 2
-    # droite de la face inférieure de la bavette : Q(t) = r0 - e n + t d
-    q0 = r0 - n * e
+def bav_demi_largeur(v):
+    """Demi-largeur de la bavette à la distance v de la sortie du menton."""
+    wc, wm, wb = P["bav_larg_col"] / 2, P["bav_larg_max"] / 2, P["bav_larg_bout"] / 2
+    vc, vm, Lv = P["bav_col_long"], P["bav_pos_max"], P["bav_longueur"]
+    if v <= vc:
+        return wc
+    if v <= vm:
+        s_ = (v - vc) / (vm - vc)
+        return wc + (wm - wc) * s_ ** P["bav_flare"]
+    s_ = min(1.0, (v - vm) / (Lv - vm))
+    return wb + (wm - wb) * math.sqrt(max(0.0, 1 - s_ * s_))
 
-    def f(t):
-        q = q0 + d * t
+
+def bav_epaisseur(v):
+    t0, t1, Lv = P["bav_ep_racine"], P["bav_ep_bout"], P["bav_longueur"]
+    return t0 + (t1 - t0) * min(max(v, 0.0), Lv) / Lv
+
+
+def bav_dessus(v):
+    """Cote (selon n) de la face avant : plane, relevée sur les derniers mm avant le corps."""
+    lr, h = P["bav_releve_long"], P["bav_releve"]
+    if v >= lr:
+        return 0.0
+    s_ = min(1.0, max(0.0, 1 - v / lr))
+    return h * s_ * s_
+
+
+def bav_nervure(v, z):
+    h = P["bav_nervure_h"] * max(0.0, 1 - max(v, 0.0) / P["bav_nervure_long"])
+    b = P["bav_nervure_larg"] / 2
+    if h <= 0 or abs(z) >= b:
+        return 0.0
+    return h * 0.5 * (1 + math.cos(math.pi * z / b))
+
+
+def bavette():
+    """Bavette : forme en plan en cloche, biseau 4 -> 2 mm, nervure en V dessous,
+    face avant plane relevée vers le menton. Loft de sections transversales."""
+    d, n, r0, O = _bav_repere()
+    noy, Lv = P["bav_noyee"], P["bav_longueur"]
+    z_ax = cq.Vector(0, 0, 1)
+
+    def section(v, npts=18, dt=0.0, dw=0.0):
+        w = bav_demi_largeur(v) - dw
+        top = bav_dessus(v) - dt / 2
+        bas = -bav_epaisseur(v) + dt / 2                 # face arrière (hors nervure)
+        t = top - bas
+        rc = min(P["bav_arrondi"], t / 2 - 0.05, w / 3)
+        pts = []
+        # (m, z) : m selon n (dessus > 0), z latéral ; parcours fermé
+        for i in range(npts + 1):                         # face avant, z de +w à -w
+            z = (w - rc) * (1 - 2 * i / npts)
+            pts.append((top, z))
+        # chant gauche : demi-cercle reliant dessus et dessous
+        bas_g = bas - bav_nervure(v, -(w - rc))
+        cg = ((top + bas_g) / 2, -(w - rc))
+        rg = (top - bas_g) / 2
+        for k in range(1, 8):
+            ang = math.pi / 2 + math.pi * k / 8
+            pts.append((cg[0] + rg * math.sin(ang), cg[1] + min(rc, rg) * math.cos(ang)))
+        for i in range(npts + 1):                         # face arrière + nervure, z de -w à +w
+            z = -(w - rc) + 2 * (w - rc) * i / npts
+            pts.append((bas - bav_nervure(v, z), z))
+        for k in range(1, 8):                              # chant droit (bas -> haut)
+            ang = -math.pi / 2 + math.pi * k / 8
+            pts.append((cg[0] + rg * math.sin(ang), (w - rc) + min(rc, rg) * math.cos(ang)))
+        P3 = [O + d * (noy + v) + n * m + z_ax * zz for (m, zz) in pts]
+        # polygone fin (≈ 50 côtés) : booléens robustes, lissé à l'échelle de l'impression
+        return cq.Wire.makePolygon(P3, close=True)
+
+    v0 = -noy - P["bav_racine_prof"]
+    vs = [v0, (v0 - 0.0) / 2] + [i * 0.5 for i in range(int(Lv / 0.5) + 1)]
+    if vs[-1] < Lv - 1e-6:
+        vs.append(Lv)
+    vs = sorted(set(round(v, 4) for v in vs))
+    secs = [section(v) for v in vs]
+    # bord d'attaque arrondi : deux sections de fermeture au-delà du bout
+    tb = P["bav_ep_bout"]
+    secs.append(section(Lv + 0.35 * tb / 2, dt=tb * 0.3, dw=0.25))
+    secs.append(section(Lv + 0.75 * tb / 2, dt=tb * 0.7, dw=0.6))
+    lip = cq.Workplane("XY").add(loft(secs, ruled=True))
+    return lip, dict(d=d, n=n, r0=r0, O=O)
+
+
+def conge(geo):
+    """Congé concave entre la face arrière (dessous, biseautée) de la bavette et le ventre."""
+    d, n, O = geo["d"], geo["n"], geo["O"]
+    noy, Lv = P["bav_noyee"], P["bav_longueur"]
+    t0, t1 = P["bav_ep_racine"], P["bav_ep_bout"]
+    # face arrière au plan médian (hors nervure) : B(v) = O + d (noy+v) - n t(v)
+    dl = (d - n * ((t1 - t0) / Lv)).normalized()
+    q0 = O + d * noy - n * t0                     # à la sortie du menton (v = 0)
+    q0 = q0 - dl * (noy + 6.0)                    # prolongée dans la tête (départ dans le corps)
+
+    def f(s_):
+        q = q0 + dl * s_
         return q.y - ventre(q.x)
-    # intersection face inférieure / ventre (bissection)
-    ta, tb = 0.0, L
+    ta, tb = 0.0, noy + Lv + 6.0
+    if f(ta) < 0:
+        raise ValueError("congé : départ de la face arrière hors du corps")
     for _ in range(60):
         tm = (ta + tb) / 2
         if f(ta) * f(tm) <= 0:
             tb = tm
         else:
             ta = tm
-    C = q0 + d * ta
+    C = q0 + dl * ta
     Lg = P["conge_tangente"]
     T1 = cq.Vector(C.x + Lg, ventre(C.x + Lg), 0)
     tv = (T1 - C).normalized()
-    half = math.acos(max(-1, min(1, tv.dot(d)))) / 2
+    half = math.acos(max(-1, min(1, tv.dot(dl)))) / 2
     R = Lg * math.tan(half)
-    # Repère local : origine C, u le long de la bavette (vers la pointe),
-    # m = -n (de la face inférieure vers le ventre), z latéral.
-    m = n * -1
-    u_t1 = (T1 - C).dot(d)
-    lu0 = (C - r0).dot(d)                       # abscisse de C dans la bavette
-    wr, wm = P["bav_larg_racine"] / 2, P["bav_larg_max"] / 2
-    um = L - wm
-
-    def larg_bav(lu):
-        return wr + (wm - wr) * max(0.0, min(lu, um)) / um
-
+    m_ = cq.Vector(-dl.y, dl.x, 0)                # perpendiculaire à dl
+    if m_.dot(n) > 0:
+        m_ = m_ * -1                              # vers le ventre (opposé à la face avant)
+    u_t1 = (T1 - C).dot(dl)
+    vC = (C - O).dot(d) - noy                     # abscisse v de C
     w_fin = P["conge_demi_larg"]
 
     def section(u, npts=40):
         du = u - Lg
         marc = 0.0 if u >= Lg else R - math.sqrt(max(0.0, R * R - du * du))
+        v = vC + u * dl.dot(d)
         if u >= 0:
-            hw = larg_bav(lu0 + u)
+            hw = bav_demi_largeur(v)
         else:
             k = min(1.0, u / u_t1)
-            hw = larg_bav(lu0) * (1 - k) + w_fin * k
-        mc = (-2 * e + marc) / 2
-        hm = (2 * e + marc) / 2
+            hw = bav_demi_largeur(vC) * (1 - k) + w_fin * k
+        ep = 1.5                                   # pénétration dans la bavette
+        mc = (-ep + marc) / 2
+        hm = (ep + marc) / 2
         pts = []
         for i in range(npts):
             t = 2 * math.pi * i / npts
             c, s_ = math.cos(t), math.sin(t)
             fm = math.copysign(abs(c) ** (2 / 2.4), c)
             fz = math.copysign(abs(s_) ** (2 / 3.5), s_)
-            p = C + d * u + m * (mc + hm * fm) + cq.Vector(0, 0, hw * fz)
-            pts.append(p)
+            pts.append(C + dl * u + m_ * (mc + hm * fm) + cq.Vector(0, 0, hw * fz))
         return cq.Wire.assembleEdges([cq.Edge.makeSpline(pts, periodic=True)])
 
     us = []
@@ -175,8 +272,7 @@ def conge(bav_geom):
         us.append(u)
         u -= 0.5
     us.append(u_end)
-    loft = cq.Solid.makeLoft([section(x) for x in us], ruled=False)
-    return cq.Workplane("XY").add(loft), dict(C=C, R=R)
+    return cq.Workplane("XY").add(loft([section(x) for x in us])), dict(C=C, R=R)
 
 
 def oeils(body):

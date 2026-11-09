@@ -64,8 +64,8 @@ traversant, pas par la colle.
 
 | Billes tungstène Ø5 | Masse billes | Total avec 2 hameçons (0,9 g) | Assiette au repos |
 |---|---|---|---|
-| **6** (retenu) | 7,5 g | **≈ 21,9 g** | **+9° (léger nez en bas)** |
-| 7 | 8,7 g | ≈ 23,1 g | −10° (léger queue en bas) |
+| **6** (retenu) | 7,5 g | **≈ 21,9 g** | **≈ +13° (léger nez en bas)** |
+| 7 | 8,7 g | ≈ 23,1 g | ≈ −7° (léger queue en bas) |
 
 La nouvelle bavette (plus épaisse, plus de matière à l'avant) a déplacé l'équilibre : la 7e bille fait
 maintenant pencher la queue. Pour la garder, mettre `assiette_cible=(-12.0, 10.0)` dans `P`.

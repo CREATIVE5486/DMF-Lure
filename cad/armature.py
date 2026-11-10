@@ -20,11 +20,11 @@ class Armature:
     d: float = 1.6               # diamètre fil inox
     clou_d: float = 2.92         # Ø des pions (clous) du gabarit = mandrin des plis
     oeil_ventre_jour: float = 3.0  # ouverture libre sous le ventre
-    y_nez: float = 0.0           # axe de l'œillet de nez
+    y_nez: float = 0.3           # axe de l'œillet de nez
     y_queue: float = -2.4        # axe de l'œillet de queue
-    y_tige: float = 4.35         # hauteur de la tige au milieu
-    x_coude1: tuple = (8.0, 13.15)   # sommets du coude avant (bas, haut)
-    x_coude2: tuple = (64.0, 84.0)  # sommets du coude arrière (haut, bas)
+    y_tige: float = 6.5          # hauteur de la tige au milieu
+    x_coude1: tuple = (8.0, 14.5)   # sommets du coude avant (bas, haut)
+    x_coude2: tuple = (66.0, 90.0)  # sommets du coude arrière (haut, bas)
     x_ventre: float = 33.5       # axe de l'épingle ventrale
     x_retour_nez: float = 4.5    # fin du retour de fil côté nez
     x_retour_queue: float = 98.0  # fin du retour de fil côté queue

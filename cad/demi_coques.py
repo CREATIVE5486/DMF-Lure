@@ -38,7 +38,7 @@ C = dict(
     # pions de centrage (ABS imprimé)
     pion_d=2.4, pion_trou_d=2.6, pion_prof=2.3, pion_long=4.2,
     pions_fenetres=((10.0, 26.0), (29.0, 38.0), (44.0, 56.0), (62.0, 80.0)),
-    bille_y_max=0.5,       # billes sous la tige uniquement (lest bas)
+    bille_sous_tige=3.0,   # centre des billes au moins 3 mm sous la tige (lest bas)
 )
 
 
@@ -122,7 +122,7 @@ def positions_billes():
         yc = None
         for k in range(120):
             y = ventre(x) + 1.0 + k * 0.1
-            if y > C["bille_y_max"]:
+            if y > ARM.y_tige - C["bille_sous_tige"]:
                 break
             if ok(x, y):
                 yc = y

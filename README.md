@@ -2,9 +2,12 @@
 
 Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm), imprimé en
 **deux demi-coques** (coupe au plan de symétrie) assemblées au **jus d'ABS**, avec **armature inox Ø1,6
-traversante**, **6 billes de tungstène Ø5** et **pions de centrage ABS**. La bavette fait corps avec le
+traversante**, **4 billes de tungstène Ø5** et **pions de centrage ABS**. La bavette fait corps avec le
 leurre, avec un fondu arrondi sous le menton. L'armature se plie sur un **gabarit à pions** (clous Ø2,92).
 
+![leurre](docs/leurre_iso.png)
+![profil](docs/leurre_profil.png)
+![dessus](docs/leurre_dessus.png)
 ![éclaté](docs/demi_coques_eclate.png)
 
 ## Fichiers (`out/`)
@@ -45,7 +48,7 @@ Paramètres : `C` dans `cad/demi_coques.py` (rainure, serrage, pions), `P` dans 
 ## Assemblage
 
 1. Ébavurer, tester à blanc : fil clipsé dans A, billes, pions, fermer avec B.
-2. Une goutte de cyano dans chaque logement de A, poser les **6 billes**.
+2. Une goutte de cyano dans chaque logement de A, poser les **4 billes**.
 3. **Clipser l'armature** dans A (l'épingle ventrale et les œillets sortent par les encoches).
 4. Enfoncer les **4 pions** dans A.
 5. Jus d'ABS (ABS + acétone, consistance crème) au pinceau sur les deux faces planes, en évitant la rainure.
@@ -57,24 +60,27 @@ traversant, pas par la colle.
 
 ## Lest et équilibre
 
-* 6 logements sphériques **sous la tige** (y ≈ −0,5 à −1,1), moitié dans chaque coque, billes collées :
+* 4 logements sphériques **sous la tige**, moitié dans chaque coque, billes collées :
   rien ne bouge en nage, rien ne fait gîter le leurre.
-* **Roulis** : CG **2,1 mm sous le centre de carène** (hameçons montés).
-* **Tangage** : le nombre de billes est choisi pour une assiette au repos quasi horizontale.
+* **Roulis** : CG **1,6 mm sous le centre de carène** (hameçons montés).
+* **Tangage** : le nombre de billes est choisi pour une assiette au repos proche de l'horizontale.
 
-| Billes tungstène Ø5 | Masse billes | Total avec 2 hameçons (0,9 g) | Assiette au repos |
-|---|---|---|---|
-| **6** (retenu) | 7,5 g | **≈ 21,9 g** | **≈ +13° (léger nez en bas)** |
-| 7 | 8,7 g | ≈ 23,1 g | ≈ −7° (léger queue en bas) |
+| | |
+|---|---|
+| Volume extérieur | 14,0 cm³ (poussée 14,0 g) |
+| ABS (plein) | 13,6 g |
+| Fil inox Ø1,6 | 2,7 g |
+| 4 billes tungstène Ø5 | 5,0 g |
+| **Total avec 2 hameçons (0,9 g)** | **≈ 23,0 g**, assiette au repos ≈ **+5,7°** (léger nez en bas) |
 
-La nouvelle bavette (plus épaisse, plus de matière à l'avant) a déplacé l'équilibre : la 7e bille fait
-maintenant pencher la queue. Pour la garder, mettre `assiette_cible=(-12.0, 10.0)` dans `P`.
+Le corps aux vraies cotes est nettement plus volumineux que la première version (14,5 mm de large au lieu de 11) :
+il y a plus d'ABS, et l'équilibre en tangage ne tolère que 4 billes sur les 8 logements possibles.
 
 Autre matériau ou autres hameçons : `bille_mat` / `hamecon_g` dans `P`, relancer.
 
 ## Armature (fil inox Ø1,6, recuit) et gabarit
 
-Longueur développée 166 mm → **couper 190 mm**. Tous les plis se font autour des clous du gabarit
+Longueur développée 168 mm → **couper 190 mm**. Tous les plis se font autour des clous du gabarit
 (rayon de fibre neutre 2,26 mm) : gabarit, plan et rainures ont exactement la même forme.
 
 ![plan](out/armature_plan_p1.png)
@@ -94,17 +100,26 @@ Longueur développée 166 mm → **couper 190 mm**. Tous les plis se font autour
 
 ## Géométrie relevée
 
-* Longueur 105 mm, hauteur ≈ 16 mm, épaisseur ≈ 11,2 mm (profils mesurés sur photo, `cad/geom.py`).
+* Profils extraits des silhouettes de tes photos (vue de profil + vue de dessus), puis calés sur tes cotes :
+
+| x depuis le nez | Hauteur | Largeur |
+|---|---|---|
+| ≈ 15 mm (tête) | 11,9 mm | 13,2 mm |
+| ≈ 45–50 mm (maxi) | 16,9 mm | 14,5 mm |
+| ≈ 90–95 mm (queue) | 8 mm | 6 mm |
+| longueur | 105 mm | |
+
+  Dos bombé, ventre presque droit qui remonte vers la tête, tête resserrée aux ouïes (`cad/geom.py`).
 
 ### Bavette
 
 | | |
 |---|---|
 | Angle | 40° sous l'axe du corps |
-| Longueur visible | 14,8 mm |
-| Forme en plan | col 6 mm (sur 2 mm) → flancs concaves en cloche → **11 mm** maxi à 10,5 mm → bout plat arrondi de 6 mm |
+| Longueur | 21,4 mm depuis la sortie du menton (pointe **13 mm devant le nez**, mesuré) |
+| Forme en plan | col 6 mm (sur 2,9 mm) → flancs concaves en cloche → **11 mm** maxi à 15,2 mm → bout plat arrondi de 6 mm |
 | Épaisseur | **4 mm à la racine → 2 mm au bout** (face avant plane, la face arrière converge) |
-| Nervure | **en V sous la bavette**, 1,2 mm de saillie à la racine, 4,4 mm de large, s'efface à 7 mm |
+| Nervure | **en V sous la bavette**, 1,2 mm de saillie à la racine, 4,4 mm de large, s'efface à 10,2 mm |
 | Dessus | plat, **relevé de 1 mm sur les 4 derniers mm** avant le menton |
 | Bords | chants latéraux R0,6, bord d'attaque arrondi |
 | Fondu menton | loft de sections arrondies sous la bavette, rayon ≈ 16 mm |

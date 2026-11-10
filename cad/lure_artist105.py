@@ -26,14 +26,14 @@ OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 P = dict(
     # bavette
     bav_angle=40.0,         # ° sous l'axe du corps (mesuré photo : 38-40°)
-    bav_sortie=(2.4, -3.5),  # point où l'axe de la bavette sort du menton
+    bav_sortie=(4.0, -2.0),  # point où l'axe de la bavette sort du menton
     bav_noyee=1.2,          # longueur noyée dans la tête
-    bav_longueur=14.8,      # longueur visible (sortie -> extrémité)
+    bav_longueur=21.4,      # longueur visible : pointe 13 mm devant le nez (mesuré)
     # forme en plan (v = distance depuis la sortie du menton)
     bav_larg_col=6.0,       # largeur du col à la sortie du menton
-    bav_col_long=2.0,       # longueur du col (largeur constante)
+    bav_col_long=2.9,       # longueur du col (largeur constante)
     bav_larg_max=11.0,      # largeur maxi
-    bav_pos_max=10.5,       # position de la largeur maxi
+    bav_pos_max=15.2,       # position de la largeur maxi
     bav_larg_bout=6.0,      # largeur du bout plat (coins arrondis)
     bav_flare=1.6,          # >1 : flancs concaves (évasement en cloche)
     # épaisseur (biseau) : face avant plane, face arrière qui converge
@@ -43,7 +43,7 @@ P = dict(
     # nervure centrale en V sous la bavette
     bav_nervure_h=1.2,      # saillie à la racine
     bav_nervure_larg=4.4,   # largeur de base
-    bav_nervure_long=7.0,   # s'efface à cette distance de la sortie
+    bav_nervure_long=10.2,   # s'efface à cette distance de la sortie
     # face avant : remontée vers le corps sur les derniers mm
     bav_releve=1.0,
     bav_releve_long=4.0,
@@ -51,7 +51,7 @@ P = dict(
     conge_tangente=5.0,     # longueur de raccord du congé sous le menton
     conge_demi_larg=2.6,    # demi-largeur du congé (quille)
     # œil 3D
-    oeil_pos=(7.7, 2.2), oeil_d=5.2, oeil_prof=0.5,
+    oeil_pos=(8.0, 3.6), oeil_d=6.0, oeil_prof=0.5,
     # lest
     bille_d=5.0, bille_jeu=0.2, paroi=0.6,   # paroi entre puits
     paroi_ext=0.8,          # paroi mini puits / peau extérieure (2 périmètres)
@@ -98,7 +98,9 @@ def corps():
            .translate((x1, y1, 0)))
     body = body.cut(cut)
     try:
-        body = body.faces(cq.selectors.DirectionMinMaxSelector(cq.Vector(0.651, -0.759, 0))).edges().fillet(0.5)
+        (qx1, qy1), (qx2, qy2) = QUEUE_BAS, QUEUE_HAUT
+        qn = cq.Vector(qy2 - qy1, -(qx2 - qx1), 0).normalized()
+        body = body.faces(cq.selectors.DirectionMinMaxSelector(qn)).edges().fillet(0.5)
     except Exception as e:
         print("queue : arrondi ignoré", e)
     return body

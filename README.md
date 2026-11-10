@@ -73,7 +73,7 @@ traversant, pas par la colle.
 | ABS (plein) | 13,6 g |
 | Fil inox Ø1,6 | 2,7 g |
 | 4 billes tungstène Ø5 | 5,0 g |
-| **Total avec 2 hameçons (0,9 g)** | **≈ 23,0 g**, assiette au repos ≈ **+5,7°** (léger nez en bas) |
+| **Total avec 2 hameçons (0,9 g)** | **≈ 23,1 g**, assiette au repos ≈ **+6,6°** (léger nez en bas) |
 
 Le corps aux vraies cotes est nettement plus volumineux que la première version (14,5 mm de large au lieu de 11) :
 il y a plus d'ABS, et l'équilibre en tangage ne tolère que 4 billes sur les 8 logements possibles.
@@ -118,10 +118,10 @@ Longueur développée 168 mm → **couper 190 mm**. Tous les plis se font autour
 | | |
 |---|---|
 | Angle | 40° sous l'axe du corps |
-| Longueur | 21,4 mm depuis la sortie du menton (pointe **13 mm devant le nez**, mesuré) |
-| Forme en plan | col 6 mm (sur 2,9 mm) → flancs concaves en cloche → **11 mm** maxi à 15,2 mm → bout plat arrondi de 6 mm |
+| Longueur visible | **16 mm** du menton au bout (mesuré), pointe ≈ 9 mm devant le nez |
+| Forme en plan | col 7 mm au menton → **9 mm** au 1er quart → **13 mm** maxi à 12 mm → bout arrondi (mesuré) |
 | Épaisseur | **4 mm à la racine → 2 mm au bout** (face avant plane, la face arrière converge) |
-| Nervure | **en V sous la bavette**, 1,2 mm de saillie à la racine, 4,4 mm de large, s'efface à 10,2 mm |
+| Nervure | **en V sous la bavette**, 1,2 mm de saillie à la racine, 4,4 mm de large, s'efface à 7,6 mm |
 | Dessus | plat, **relevé de 1 mm sur les 4 derniers mm** avant le menton |
 | Bords | chants latéraux R0,6, bord d'attaque arrondi |
 | Fondu menton | loft de sections arrondies sous la bavette, rayon ≈ 16 mm |

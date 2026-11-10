@@ -28,14 +28,14 @@ P = dict(
     bav_angle=40.0,         # ° sous l'axe du corps (mesuré photo : 38-40°)
     bav_sortie=(4.0, -2.0),  # point où l'axe de la bavette sort du menton
     bav_noyee=1.2,          # longueur noyée dans la tête
-    bav_longueur=21.4,      # longueur visible : pointe 13 mm devant le nez (mesuré)
+    bav_longueur=16.0,      # longueur visible menton -> bout (mesuré 16)
     # forme en plan (v = distance depuis la sortie du menton)
-    bav_larg_col=6.0,       # largeur du col à la sortie du menton
-    bav_col_long=2.9,       # longueur du col (largeur constante)
-    bav_larg_max=11.0,      # largeur maxi
-    bav_pos_max=15.2,       # position de la largeur maxi
-    bav_larg_bout=6.0,      # largeur du bout plat (coins arrondis)
-    bav_flare=1.6,          # >1 : flancs concaves (évasement en cloche)
+    bav_larg_col=7.0,       # largeur du col à la sortie du menton
+    bav_col_long=1.5,       # longueur du col (largeur constante)
+    bav_larg_max=13.0,      # largeur maxi
+    bav_pos_max=12.0,       # position de la largeur maxi
+    bav_larg_bout=8.0,      # largeur du bout plat (coins arrondis)
+    bav_flare=0.6,          # <1 : flancs bombés, >1 : flancs concaves
     # épaisseur (biseau) : face avant plane, face arrière qui converge
     bav_ep_racine=4.0,
     bav_ep_bout=2.0,
@@ -43,7 +43,7 @@ P = dict(
     # nervure centrale en V sous la bavette
     bav_nervure_h=1.2,      # saillie à la racine
     bav_nervure_larg=4.4,   # largeur de base
-    bav_nervure_long=10.2,   # s'efface à cette distance de la sortie
+    bav_nervure_long=7.6,   # s'efface à cette distance de la sortie
     # face avant : remontée vers le corps sur les derniers mm
     bav_releve=1.0,
     bav_releve_long=4.0,

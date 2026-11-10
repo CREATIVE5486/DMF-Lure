@@ -13,7 +13,7 @@ leurre, avec un fondu arrondi sous le menton. L'armature se plie sur un **gabari
 |---|---|
 | `plateau_demi_coques.3mf` | coque A + coque B + 6 pions, déjà posés face plane sur le plateau → **à ouvrir dans le slicer** |
 | `demi_coque_A.stl`, `demi_coque_B.stl`, `pions_centrage.stl` | les mêmes, séparés |
-| `gabarit_pions_impression.stl` | gabarit de pliage de l'armature (déjà retourné) |
+| `gabarit_pions_impression.stl`, `gabarit_eprouvette.stl` | gabarit de pliage de l'armature, éprouvette de jeu des trous |
 | `armature_plan.pdf` | armature cotée 2:1 (entraxes des pions) + vue 1:1, coordonnées des pions, gamme |
 | `leurre.step`, `armature_fil.step`, `gabarit_pions.step` | CAO |
 | `rapport.json` | positions des billes / pions / points de serrage, masses, équilibre |
@@ -79,11 +79,18 @@ Longueur développée 166 mm → **couper 190 mm**. Tous les plis se font autour
 
 ![plan](out/armature_plan_p1.png)
 ![gabarit](docs/gabarit_pions.png)
+![éprouvette](docs/gabarit_eprouvette.png)
 
-* Gabarit : 9 trous Ø3,0, **lamage Ø6,4 × 1,4 par dessous** pour la tête des clous, semelle de 2,4 mm qui suit le
-  fil + bossages de 6 mm, tracé du fil gravé, traits de coupe des retours. ≈ 5 g de matière.
+* **Plaque pleine de 6 mm** (enveloppe du tracé + 7 mm de marge, arêtes chanfreinées), ≈ 15 cm³ / 17 g,
+  128 × 26 mm. Plus de zones fines.
+* **9 trous Ø3,4** pour clous Ø2,92 (≈ 0,5 mm de jeu, le FDM resserre les trous d'environ 0,2 mm), avec un
+  **lamage Ø6,8 × 1,6 par dessous** pour la tête Ø6 : le clou se glisse par dessous et le gabarit reste à plat.
+* 2 trous de vis Ø3 fraisés pour le visser sur une planchette, placés loin du fil et des bords.
+* Tracé du fil gravé (0,8 mm), numéros des pions gravés, traits de coupe des retours.
+* Impression : **dessus gravé vers le haut**, lamages contre le plateau, sans support. 4 périmètres, 40 % de remplissage.
+* **Éprouvette** `gabarit_eprouvette.stl` (≈ 2 g) : trous Ø3,1 / 3,2 / 3,3 / 3,4 / 3,5 (1 à 5 encoches).
+  Imprime-la d'abord, garde le trou où le clou glisse sans jeu, et mets cette valeur dans `trou_d` (`G`).
 * Prendre de l'inox **recuit** (304/316 doux) : de l'inox « ressort » risque de casser au rayon d'un clou de 2,92.
-* Visser ou coller le gabarit sur une planchette pour plier du Ø1,6.
 
 ## Géométrie relevée
 

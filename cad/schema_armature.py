@@ -197,7 +197,7 @@ def main():
             y -= 4.3
         conseils = [
             "Mode opératoire sur le gabarit :",
-            "1. Clous enfoncés par dessous (tête dans le lamage), gabarit posé sur ses bossages.",
+            "1. Clous glissés par dessous (tête dans le lamage), gabarit vissé à plat sur une planchette.",
             f"2. Couper {coupe:.0f} mm. Enrouler l'œillet de nez autour du pion 1 (≈ 15 mm de queue côté retour).",
             "3. Coucher la tige dans la gravure, l'enrouler successivement autour des pions 2, 3, 4,",
             "   puis faire le tour du pion 5 (fond de l'épingle) et remonter par le pion 6.",

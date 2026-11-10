@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { makeMonotone, clamp } from './curves.js';
 import { hookSpec, SPLIT_RINGS } from './design.js';
+import { importedFor } from './importedStore.js';
 
 /* ============================== Profil & section ============================== */
 
@@ -94,7 +95,45 @@ export function bodyRings(design, nu = 140, nt = 96) {
 }
 
 // Maillage affiché : grille (u, θ) avec UV linéaires le long du corps.
+// Maillage importé → géométrie affichée avec UV cylindriques (u = longueur, v = tour du corps)
+function importedBodyGeometry(design, proc) {
+  const soup = proc.soup;
+  const L = Math.max(1, design.body.length);
+  const { vertices, triangles } = weld(soup, 1e-4);
+  const ig = new THREE.BufferGeometry();
+  ig.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  ig.setIndex(new THREE.BufferAttribute(triangles, 1));
+  ig.computeVertexNormals();
+  const vn = ig.attributes.normal.array;
+  const n = triangles.length;
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  for (let t = 0; t < n; t += 3) {
+    const vs = [];
+    for (let k = 0; k < 3; k++) {
+      const v = triangles[t + k];
+      pos.set(vertices.subarray(v * 3, v * 3 + 3), (t + k) * 3);
+      nrm.set(vn.subarray(v * 3, v * 3 + 3), (t + k) * 3);
+      let th = Math.atan2(vertices[v * 3 + 2], vertices[v * 3 + 1]) / (Math.PI * 2);
+      if (th < 0) th += 1;
+      vs.push(th);
+      uv[(t + k) * 2] = Math.max(0, Math.min(1, vertices[v * 3] / L));
+    }
+    const mx = Math.max(...vs), mn = Math.min(...vs);
+    for (let k = 0; k < 3; k++) uv[(t + k) * 2 + 1] = mx - mn > 0.5 && vs[k] < 0.5 ? vs[k] + 1 : vs[k];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  g.userData.profile = makeProfile(design);
+  return g;
+}
+
 export function buildBodyGeometry(design, nu = 150, nt = 112) {
+  const imp = importedFor(design);
+  if (imp) return importedBodyGeometry(design, imp);
   const { rings, P } = bodyRings(design, nu, nt);
   const n = rings.length, cols = nt + 1;
   const pos = new Float32Array(n * cols * 3);
@@ -192,11 +231,16 @@ export function flipSoup(s) {
 }
 
 export function buildSolidBody(design, nu = 140, nt = 96) {
+  const imp = importedFor(design);
+  if (imp) return imp.outerSoup;
   return loftRings(bodyRings(design, nu, nt).rings.map((r) => r.pts));
 }
 
 // Cavité intérieure (capsule fermée) pour un corps creux de paroi `wall`.
 export function buildCavity(design, wall = design.print.wall, nu = 90, nt = 64) {
+  const imp = importedFor(design);
+  if (imp && (imp.hollowModel || importMassMode(design) === 'mesh')) return null; // creux déjà modélisé / plein voulu
+  if (imp) wall *= 1.6; // marge de sécurité : le profil est une approximation du modèle importé
   const P = makeProfile(design);
   const minK = Math.min(1, P.bw, P.vw);
   const ok = (u) => P.top(u) - wall > 0.6 && P.bot(u) - wall > 0.6 && P.hw(u) * minK * (1 - P.keel * 0.5) - wall > 0.6;
@@ -319,6 +363,14 @@ export function lipRings(design, na = 72, nphi = 40) {
   return rings;
 }
 
+// Mode de calcul de masse d'un modèle importé : 'mesh' (tel que modélisé) ou 'print' (parois + remplissage)
+export function importMassMode(design) {
+  const imp = importedFor(design);
+  if (!imp) return null;
+  const m = design.imported?.params?.massMode || 'auto';
+  return m === 'auto' ? (imp.hollowModel ? 'mesh' : 'print') : m;
+}
+
 export function buildLipSoup(design) {
   return loftRings(lipRings(design));
 }
@@ -349,7 +401,7 @@ function ellipsoidRings(center, ax, ay, az, n = 28, m = 36, rotZ = 0) {
 // Palette caudale d'un shad souple
 export function buildPaddleSoup(design) {
   const f = design.features?.paddle;
-  if (!f?.enabled) return null;
+  if (!f?.enabled || design.type === 'imported') return null;
   const P = makeProfile(design);
   const D = Math.max(6, f.size);
   const yc = (P.top(0.97) - P.bot(0.97)) / 2;

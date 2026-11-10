@@ -1,9 +1,11 @@
 // Calculs CSG en arrière-plan (l'interface reste fluide).
 import { printSolids, moldGeometry, masterGeometry, finalSoup } from './csg.js';
+import { setImported } from './importedStore.js';
 
 self.onmessage = (e) => {
   const { id, kind, design, opts } = e.data;
   try {
+    if (opts?.importedProc) { setImported(opts.importedProc.id, { proc: opts.importedProc }); }
     let parts = [];
     let features = null;
     if (kind === 'print') {

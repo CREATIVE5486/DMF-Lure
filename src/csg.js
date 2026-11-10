@@ -7,6 +7,7 @@ import {
   armaturePath, weld, soupBounds, makeProfile, lineTiePoint, hangerPoints, repairTJunctions,
 } from './geometry.js';
 import { BALLAST_MATERIALS } from './design.js';
+import { importedFor } from './importedStore.js';
 
 const evaluator = new Evaluator();
 evaluator.attributes = ['position', 'normal'];
@@ -120,6 +121,7 @@ function funnelSoup(a, b, r0, r1, m = 20) {
 
 // Solide extérieur complet : corps ∪ bavette ∪ palette
 export function outerBrush(design, { withLip = true } = {}) {
+  if (importedFor(design)) return brushFromSoup(importedFor(design).outerSoup); // la bavette fait partie du modèle
   let b = brushFromSoup(buildSolidBody(design, 130, 88));
   if (withLip && design.lip.enabled) b = add(b, brushFromSoup(buildLipSoup(design)));
   const pad = buildPaddleSoup(design);
@@ -150,8 +152,9 @@ function armatureParts(design, r, extend = null) {
 
 /* ------------------------------ Pièces imprimées ------------------------------ */
 export function printSolids(design, { mode = 'halves', hollow = true, wireGroove = true } = {}) {
-  const integrated = design.print.lipIntegrated !== false;
-  let body = outerBrush(design, { withLip: integrated });
+  const imp = importedFor(design);
+  const integrated = imp ? true : design.print.lipIntegrated !== false;
+  let body = imp?.hollowModel ? brushFromSoup(imp.soup) : outerBrush(design, { withLip: integrated });
   const cav = hollow && (design.print.infill || 0) < 100 ? buildCavity(design, design.print.wall) : null;
   const hole = leaderHoleSoup(design);
   body = sub(body, brushOf([cav, hole]));
@@ -169,7 +172,7 @@ export function printSolids(design, { mode = 'halves', hollow = true, wireGroove
     const right = inter(body, brushFromSoup(boxSoup([bb.min[0] - 5, bb.min[1] - 5, -999], [bb.max[0] + 5, bb.max[1] + 5, 0])));
     out.push({ key: 'left', soup: finalSoup(left) }, { key: 'right', soup: finalSoup(right) });
   }
-  if (design.lip.enabled && !integrated) out.push({ key: 'lip', soup: buildLipSoup(design) });
+  if (design.lip.enabled && !integrated && !imp) out.push({ key: 'lip', soup: buildLipSoup(design) });
   return out;
 }
 

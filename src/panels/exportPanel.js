@@ -7,6 +7,7 @@ import { checkManifold, soupVolume, buildSolidBody, buildLipSoup } from '../geom
 import { fmtMass, fmtMassSigned, fmtLen } from '../units.js';
 import { warnText } from './designPanel.js';
 import { runCsg } from '../csgClient.js';
+import { importedFor } from '../importedStore.js';
 
 let rightEl = null, partsEl = null, statusEl = null, infoEl = null, computeTimer = null, reqSeq = 0;
 let current = { parts: [], features: null, kind: null };
@@ -26,7 +27,9 @@ async function compute(app) {
   if (statusEl) { statusEl.className = 'calc on'; statusEl.textContent = T('Calcul des pièces 3D…', 'Computing 3D parts…'); }
   const d = state.design;
   const kind = opts.kind;
-  const o = kind === 'print' ? { mode: opts.split, hollow: opts.hollow, wireGroove: opts.wireGroove } : kind === 'mold' ? opts.mold : opts.master;
+  const o = { ...(kind === 'print' ? { mode: opts.split, hollow: opts.hollow, wireGroove: opts.wireGroove } : kind === 'mold' ? opts.mold : opts.master) };
+  const imp = importedFor(d);
+  if (imp) o.importedProc = { id: d.imported.id, soup: imp.soup, outerSoup: imp.outerSoup, hollowModel: imp.hollowModel };
   try {
     const res = await runCsg(kind, d, o);
     if (id !== reqSeq) return;

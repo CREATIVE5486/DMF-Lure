@@ -1,8 +1,9 @@
 // Construction du modèle 3D affiché (corps peint, bavette, yeux, quincaillerie).
 import * as THREE from 'three';
 import {
-  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal, buildPaddleSoup, smoothGeometry, ringSpec,
+  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal, buildPaddleSoup, smoothGeometry, ringSpec, armaturePath,
 } from './geometry.js';
+import { BALLAST_MATERIALS } from './design.js';
 
 const metal = new THREE.MeshStandardMaterial({ color: 0xc7ccd3, metalness: 1, roughness: 0.22 });
 const darkMetal = new THREE.MeshStandardMaterial({ color: 0x3a3d44, metalness: 1, roughness: 0.32 });
@@ -225,7 +226,7 @@ export function buildLure(design, texture, opts = {}) {
   body.castShadow = true;
   group.add(body);
 
-  if (design.lip.enabled) {
+  if (design.lip.enabled && design.type !== 'imported') {
     const lipGeo = buildLipGeometry(design);
     const lipMat = design.lip.clear
       ? (simpleLip
@@ -268,6 +269,39 @@ export function buildLure(design, texture, opts = {}) {
       eye.name = 'eye';
       group.add(eye);
     }
+  }
+
+  // Équipement intérieur : armature inox + billes de lest (visibles en mode rayons X)
+  const internals = new THREE.Group();
+  internals.name = 'internals';
+  if (hardware) {
+    const pts = armaturePath(design).map((p) => new THREE.Vector3(...p));
+    const wireR = design.body.length > 140 ? 0.6 : design.body.length > 80 ? 0.5 : 0.4;
+    const wire = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05), Math.max(40, pts.length * 12), wireR, 8, false), metal);
+    internals.add(wire);
+    const g = Math.max(0, design.ballast.grams || 0);
+    if (g > 0) {
+      const bm = BALLAST_MATERIALS[design.ballast.material] || BALLAST_MATERIALS.lead;
+      const u = Math.max(0.05, Math.min(0.92, design.ballast.u));
+      const room = Math.max(2, Math.min(P.bot(u) * 0.9, P.hw(u) * 1.4));
+      const sizes = [3, 4, 4.5, 5, 6, 7, 8, 10, 12];
+      const bd = sizes.filter((x) => x <= room).at(-1) || 3;
+      const per = (Math.PI / 6) * bd ** 3 * bm.density / 1000;
+      const n = Math.max(1, Math.min(24, Math.round(g / per)));
+      const ballMat = new THREE.MeshStandardMaterial({ color: design.ballast.material === 'lead' ? 0x6b6f76 : 0x9aa0a8, metalness: 0.8, roughness: 0.4 });
+      const geo = new THREE.SphereGeometry(bd / 2, 16, 12);
+      const perRow = Math.max(1, Math.floor((P.hw(u) * 2 - 1) / bd));
+      for (let i = 0; i < n; i++) {
+        const row = Math.floor(i / perRow), col = i % perRow;
+        const ball = new THREE.Mesh(geo, ballMat);
+        const x = u * P.L + (row - (Math.ceil(n / perRow) - 1) / 2) * bd * 1.02;
+        const uu = Math.max(0.02, Math.min(0.98, x / P.L));
+        ball.position.set(x, -P.bot(uu) * 0.45, (col - (Math.min(n, perRow) - 1) / 2) * bd * 1.02);
+        internals.add(ball);
+      }
+      internals.userData.balls = { n, bd };
+    }
+    group.add(internals);
   }
 
   const hookPivots = [];

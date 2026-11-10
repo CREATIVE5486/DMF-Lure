@@ -5,8 +5,9 @@ import { PRESETS, TREBLES, SINGLES, SPLIT_RINGS, BALLAST_MATERIALS, LURE_TYPES, 
 import { CurveEditor } from '../editors.js';
 import { fmtLen, fmtMass, fmtMassSigned, fmtDepth } from '../units.js';
 import { makeHydro, SwimPhysics, KNOT } from '../swimPhysics.js';
-import { BALLAST_TARGETS, ballastForTarget, restingAttitude } from '../physics.js';
+import { BALLAST_TARGETS, ballastForTarget, restingAttitude, solveBallast } from '../physics.js';
 import { makeProfile, sectionXYZ } from '../geometry.js';
+import { importedFor } from '../importedStore.js';
 
 let editors = [];
 let rightEl = null;
@@ -182,8 +183,58 @@ export function render(app) {
     targetsEl,
   ];
 
+  const importBtn = button(T('Importer mon leurre (STL, 3MF, STEP)', 'Import my lure (STL, 3MF, STEP)'), () => app.importModel(), { cls: 'wide primary', ic: 'upload' });
+  const importHint = h('p', { class: 'hint' }, T('Leurre entier, demi-coquille (reconstituée par symétrie) ou les 2 moitiés ensemble.', 'Full lure, half shell (mirrored automatically) or both halves together.'));
+  const imp = importedFor(d);
+  if (d.type === 'imported') {
+    const pr = d.imported.params || {};
+    const reproc = (patch) => app.reprocessImport(patch);
+    const lipImported = d.lip.enabled ? [
+      h('p', { class: 'hint' }, T('La bavette de ton modèle est utilisée telle quelle à l’affichage et à l’impression. Ces valeurs servent au calcul de nage (détectées automatiquement, ajustables).', 'Your model’s own lip is used as-is for display and printing. These values drive the swim physics (auto-detected, adjustable).')),
+      slider({ label: T('Longueur', 'Length'), min: 4, max: 120, step: 0.5, value: d.lip.length, fmt: mm, onInput: (v) => set('lip.length', v) }),
+      slider({ label: T('Largeur', 'Width'), min: 4, max: 80, step: 0.5, value: d.lip.width, fmt: mm, onInput: (v) => set('lip.width', v) }),
+      slider({ label: T('Angle', 'Angle'), min: 3, max: 90, step: 1, value: d.lip.angle, fmt: (v) => `${v}°`, onInput: (v) => set('lip.angle', v) }),
+    ] : [h('p', { class: 'muted' }, T('Aucune bavette détectée : le leurre est simulé sans bavette.', 'No lip detected: simulated as lipless.'))];
+    const info = imp ? [
+      stat(T('Fichier', 'File'), d.imported.fileName || '–'),
+      stat(T('Triangles', 'Triangles'), String(imp.triangles)),
+      stat(T('Reconnu comme', 'Detected as'), imp.mirrored ? T('demi-coquille → symétrie', 'half shell → mirrored') : T('leurre entier', 'full lure')),
+      stat(T('Intérieur', 'Interior'), imp.hollowModel ? T('creux (modélisé)', 'hollow (modelled)') : T('plein', 'solid')),
+      stat(T('Unités', 'Units'), imp.unit),
+      stat(T('Dimensions', 'Dimensions'), `${d.body.length} × ${d.body.height} × ${d.body.width} mm`),
+    ] : [h('p', { class: 'warn-row' }, T('Maillage introuvable : réimporte le fichier.', 'Mesh missing: re-import the file.'))];
+    const leftImported = h('div', { class: 'panel-inner' },
+      section(T('Modèle importé', 'Imported model'), [
+        ...info,
+        h('label', { class: 'sub-label' }, T('Orientation', 'Orientation')),
+        h('div', { class: 'btn-row' },
+          button(T('Tourner 90°', 'Rotate 90°'), () => reproc({ rotate: ((pr.rotate || 0) + 90) % 360 }), { cls: 'small' }),
+          button(T('Inverser avant/arrière', 'Swap front/back'), () => reproc({ flipNose: !pr.flipNose }), { cls: 'small' }),
+          button(T('Haut ↔ bas', 'Up ↔ down'), () => reproc({ flipUp: !pr.flipUp }), { cls: 'small' })),
+        select({ label: T('Unités du fichier', 'File units'), value: pr.units || 'auto', options: [{ value: 'auto', label: T('Auto', 'Auto') }, { value: 'mm', label: 'mm' }, { value: 'cm', label: 'cm' }, { value: 'm', label: 'm' }, { value: 'in', label: T('pouces', 'inches') }], onChange: (v) => reproc({ units: v }) }),
+        select({ label: T('Symétrie (demi-coquille)', 'Mirror (half shell)'), value: pr.mirror || 'auto', options: [{ value: 'auto', label: T('Auto', 'Auto') }, { value: 'yes', label: T('Toujours compléter par symétrie', 'Always mirror') }, { value: 'no', label: T('Ne pas compléter', 'Never mirror') }], onChange: (v) => reproc({ mirror: v }) }),
+        select({ label: T('Calcul de la masse', 'Mass calculation'), value: pr.massMode || 'auto', options: [{ value: 'auto', label: T('Auto', 'Auto') }, { value: 'mesh', label: T('Tel que modélisé (creux ou plein)', 'As modelled (hollow or solid)') }, { value: 'print', label: T('Imprimé : parois + remplissage', 'Printed: walls + infill') }], onChange: (v) => reproc({ massMode: v }) }),
+        toggle({ label: T('Détection auto de la bavette', 'Auto lip detection'), value: pr.lipAuto !== false, onChange: (v) => reproc({ lipAuto: v }) }),
+        h('p', { class: 'hint' }, T('L’armature et les billes de lest sont visibles en mode « Rayons X » (panneau de droite).', 'Armature and ballast balls show in X-ray mode (right panel).')),
+      ]),
+      section(T('Bavette (calcul de nage)', 'Lip (swim physics)'), [toggle({ label: T('Le leurre a une bavette', 'The lure has a lip'), value: d.lip.enabled, onChange: (v) => { set('lip.enabled', v); app.rerender(); } }), ...lipImported]),
+      section(T('Attache, hameçons & anneaux', 'Tie, hooks & rings'), hooks),
+      section(T('Lest et flottabilité', 'Ballast & buoyancy'), ballast),
+      section(T('Yeux 3D (optionnel)', '3D eyes (optional)'), eyes, { open: false }),
+      section(T('Repartir d’une base', 'Start from a base'), [importBtn, presets], { open: false }),
+    );
+    rightEl = h('div', { class: 'panel-inner' });
+    fillRight(app);
+    fillDynamic(app);
+    scheduleEstimate(app);
+    const overlayI = h('div', { class: 'view-toolbar' },
+      ...[['reset', '3/4'], ['left', T('Côté', 'Side')], ['top', T('Dessus', 'Top')], ['belly', T('Ventre', 'Belly')], ['front', T('Face', 'Front')]]
+        .map(([v, l]) => h('button', { type: 'button', class: 'chip', onclick: () => app.studio.view(v) }, l)));
+    return { left: leftImported, right: rightEl, overlay: overlayI };
+  }
+
   const leftEl = h('div', { class: 'panel-inner' },
-    section(T('Base de départ', 'Starting point'), [presets]),
+    section(T('Base de départ', 'Starting point'), [importBtn, importHint, presets]),
     section(T('Corps', 'Body'), body),
     section(T('Section : dos, ventre, forme en V', 'Section: back, belly, V shape'), sec),
     section(T('Profil (vue de côté)', 'Profile (side view)'), [editors[0].canvas, h('p', { class: 'hint' }, T('Glissez les points · double-clic : ajouter · clic droit : supprimer', 'Drag points · double-click: add · right-click: remove'))]),
@@ -237,7 +288,8 @@ function fillDynamic(app) {
         type: 'button', class: 'target' + (possible ? '' : ' disabled'), title: TL({ fr: t.descFr, en: t.descEn }),
         onclick: () => {
           if (!possible) return;
-          updateDesign((x) => { x.ballast.grams = Math.max(0, Math.round((x.ballast.grams + delta) * 10) / 10); });
+          const r = solveBallast(state.design, t.id, state.water);
+          updateDesign((x) => { x.ballast.grams = r.grams; if (r.hooks) x.hooks = r.hooks; });
           app.rerender();
         },
       }, h('b', {}, TL({ fr: t.fr, en: t.en })), h('small', {}, possible ? `${delta >= 0 ? '+' : ''}${fmtMass(delta, 1)}` : T('trop léger : retirer de la matière', 'too light: remove material'))));

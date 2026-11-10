@@ -6,7 +6,9 @@ import { SwimView } from './swim.js';
 import { CFDLab } from './cfd.js';
 import { computeMassProps, autoHardware } from './physics.js';
 import { state, on, emit, updateDesign, replaceDesign, undo, redo, canUndo, canRedo, resetHistory } from './store.js';
-import { presetDesign, normalizeDesign, PRESETS } from './design.js';
+import { presetDesign, normalizeDesign, PRESETS, designFromImport } from './design.js';
+import { readModelFile, processImport, mergeSoups, defaultImportParams } from './importer.js';
+import { setImported, importedRaw, importedFor } from './importedStore.js';
 import { h, icon, toast, modal, button } from './ui.js';
 import { T, TL, getLang, setLang } from './i18n.js';
 import { getUnits, setUnits } from './units.js';
@@ -243,7 +245,10 @@ function thumbnail() {
 async function saveCurrent(notify) {
   if (!state.projectId) state.projectId = newId();
   try {
-    await saveProject({ id: state.projectId, name: state.design.name, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL(), thumb: thumbnail() });
+    await saveProject({
+      id: state.projectId, name: state.design.name, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL(), thumb: thumbnail(),
+      mesh: state.design.type === 'imported' ? importedRaw(state.design) : undefined,
+    });
     try { localStorage.setItem('dmf.current', state.projectId); } catch { /* ignore */ }
     state.dirty = false;
     if (notify) toast(T('Leurre enregistré ✓', 'Lure saved ✓'));
@@ -258,6 +263,7 @@ async function openProject(id) {
   if (!p) return;
   state.projectId = p.id;
   lastThumb = p.thumb || '';
+  if (p.design?.type === 'imported' && p.mesh && p.design.imported?.id) registerImported(p.design.imported.id, p.mesh, p.design.imported.params);
   replaceDesign(p.design, { history: false });
   resetHistory();
   nameInput.value = state.design.name;
@@ -302,6 +308,7 @@ async function openLibrary() {
         await saveCurrent(true);
         refresh();
       }, { ic: 'copy' }),
+      button(T('Importer un modèle 3D', 'Import a 3D model'), () => { m.close(); importModel(); }, { ic: 'upload' }),
       button(T('Importer .json', 'Import .json'), () => importJson(() => m.close()), { ic: 'upload' })),
     list), { wide: true });
   async function refresh() {
@@ -354,7 +361,9 @@ function importJson(done) {
     if (!f) return;
     try {
       const data = JSON.parse(await f.text());
-      const design = normalizeDesign(data.design || data);
+      const src = data.design || data;
+      if (src?.type === 'imported' && data.mesh && src.imported?.id) registerImported(src.imported.id, b64ToF32(data.mesh), src.imported.params);
+      const design = normalizeDesign(src);
       state.projectId = newId();
       replaceDesign(design);
       nameInput.value = design.name;
@@ -371,8 +380,85 @@ function importJson(done) {
 }
 app.importJson = importJson;
 
+/* ------------------------------- import de modèles 3D ------------------------------- */
+function f32ToB64(f) {
+  const u8 = new Uint8Array(f.buffer, f.byteOffset, f.byteLength);
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b64ToF32(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Float32Array(u8.buffer);
+}
+
+function registerImported(id, raw, params) {
+  const f = raw instanceof Float32Array ? raw : new Float32Array(raw);
+  setImported(id, { raw: f, proc: processImport(f, params) });
+}
+
+// Ouvre un ou plusieurs fichiers (STL, 3MF, STEP) : leurre entier, demi-coquille, ou les 2 moitiés
+function importModel() {
+  const inp = h('input', { type: 'file', accept: '.stl,.3mf,.step,.stp', multiple: true });
+  inp.addEventListener('change', async () => {
+    const files = [...inp.files];
+    if (!files.length) return;
+    const isStep = files.some((f) => /\.(step|stp)$/i.test(f.name));
+    toast(isStep ? T('Lecture du STEP (moteur CAO, quelques secondes)…', 'Reading STEP (CAD engine, a few seconds)…') : T('Import en cours…', 'Importing…'));
+    try {
+      const soups = [];
+      for (const f of files) soups.push(await readModelFile(f.name, await f.arrayBuffer()));
+      const raw = mergeSoups(soups);
+      const id = 'imp_' + Date.now().toString(36);
+      const params = defaultImportParams();
+      registerImported(id, raw, params);
+      const proc = importedFor({ type: 'imported', imported: { id } });
+      if (state.dirty) await saveCurrent(false);
+      const name = files.length > 1 ? files[0].name.replace(/[_-]?(gauche|droite|left|right|a|b)?\.(stl|3mf|step|stp)$/i, '') : files[0].name;
+      const design = designFromImport(proc, { id, fileName: name, format: files[0].name.split('.').pop().toLowerCase(), params });
+      state.projectId = newId();
+      replaceDesign(design);
+      nameInput.value = design.name;
+      painter.applyScheme('white');
+      studio.setOptions({ xray: true });
+      lureDirty = true;
+      setTab('design');
+      const what = proc.mirrored ? T('demi-coquille reconstituée par symétrie', 'half shell mirrored to a full body') : T('leurre entier', 'full lure');
+      toast(`${T('Importé', 'Imported')} : ${what}${proc.lip ? T(' · bavette détectée', ' · lip detected') : ''} ✓`);
+      saveCurrent(false);
+    } catch (e) {
+      console.error(e);
+      toast(`${T('Import impossible', 'Import failed')} : ${e.message || e}`, 'err');
+    }
+  });
+  inp.click();
+}
+app.importModel = importModel;
+
+// Recalcule le modèle importé avec de nouveaux réglages (orientation, unités, symétrie…)
+app.reprocessImport = (patch) => {
+  const d = state.design;
+  const raw = importedRaw(d);
+  if (!raw) return;
+  const params = { ...defaultImportParams(), ...(d.imported.params || {}), ...patch };
+  setImported(d.imported.id, { proc: processImport(raw, params) });
+  const proc = importedFor(d);
+  updateDesign((x) => {
+    x.imported.params = params;
+    x.body = { ...x.body, ...structuredClone(proc.body) };
+    if (params.lipAuto && proc.lip) x.lip = { ...x.lip, ...proc.lip };
+    if (params.lipAuto && !proc.lip) x.lip.enabled = false;
+  }, { source: 'replace' });
+  lureDirty = true;
+  swimDirty = true;
+  rerender();
+};
+
 app.exportJson = () => {
-  const data = { app: 'DMF Lure Studio', format: 2, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL() };
+  const raw = state.design.type === 'imported' ? importedRaw(state.design) : null;
+  const data = { app: 'DMF Lure Studio', format: 3, design: state.design, paint: painter.toDataURL(), foil: painter.foilDataURL(), mesh: raw ? f32ToB64(raw) : undefined };
   downloadBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `${fileSafe(state.design.name)}.design.json`);
 };
 export const fileSafe = (s) => (s || 'leurre').replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'leurre';

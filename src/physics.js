@@ -2,8 +2,11 @@
 import {
   makeProfile, buildSolidBody, buildCavity, buildLipSoup, buildPaddleSoup, leaderHoleSoup, soupVolume, soupArea,
   lineTiePoint, hangerPoints, sectionXYZ, lipFrame, ringSpec,
+  importMassMode,
 } from './geometry.js';
-import { MATERIALS, BALLAST_MATERIALS, hardwareFor, hookSpec } from './design.js';
+import { importedFor } from './importedStore.js';
+import { columnsSubmerged } from './importer.js';
+import { MATERIALS, BALLAST_MATERIALS, hardwareFor, hookSpec, HARDWARE_TABLE } from './design.js';
 
 export const WATER = { fresh: 0.998, salt: 1.025 };
 const STEEL = 7.85;
@@ -72,6 +75,8 @@ export function lipArea(design) {
 // Volume immergé du corps sous le plan y = h + (x − xr)·tanθ (repère leurre), par tranches.
 function makeSlices(design, n = 70) {
   const P = makeProfile(design);
+  const imp = importedFor(design);
+  if (imp) return { P, imported: imp.rcOuter, sl: [] };
   const sl = [];
   for (let i = 0; i < n; i++) {
     const u = (i + 0.5) / n;
@@ -81,6 +86,7 @@ function makeSlices(design, n = 70) {
 }
 
 function submerged(slices, h, tanT, xr) {
+  if (slices.imported) return columnsSubmerged(slices.imported, h, tanT, xr);
   let V = 0, mx = 0, my = 0;
   for (const s of slices.sl) {
     const hh = h + (s.x - xr) * tanT;
@@ -137,6 +143,12 @@ export function restingAttitude(design, mp, water = 'fresh') {
     const hh = best.h + (s.x - xg) * best.t;
     free = Math.max(free, (P.top(s.x / P.L) - hh) * Math.cos(th));
   }
+  if (slices.imported) {
+    for (const col of slices.imported.cols) for (const [a, b2] of col.inner) {
+      const xm = best.t >= 0 ? a : b2; // extrémité la plus haute par rapport au plan incliné
+      free = Math.max(free, (col.y + slices.imported.c / 2 - (best.h + (xm - xg) * best.t)) * Math.cos(th));
+    }
+  }
   return {
     floating: true,
     submergedPct: (best.s.V / Vbody) * 100,
@@ -165,11 +177,19 @@ export function computeMassProps(design, water = 'fresh') {
   const rho = mat.density / 1000; // g/mm³
   const rhoW = (WATER[water] || WATER.fresh) / 1000;
 
-  const solid = soupVolume(buildSolidBody(design, 100, 64));
+  const imp = importedFor(design);
+  const solid = imp ? { volume: imp.rcOuter.Vmat, centroid: imp.rcOuter.Cmat } : soupVolume(buildSolidBody(design, 100, 64));
   const Vout = solid.volume;
   const infill = Math.max(0, Math.min(100, design.print.infill || 0)) / 100;
-  const cavSoup = infill < 1 ? buildCavity(design, design.print.wall, 60, 40) : null;
-  const cav = cavSoup ? soupVolume(cavSoup) : { volume: 0, centroid: solid.centroid };
+  let cav;
+  if (imp && importMassMode(design) === 'mesh') {
+    // masse « telle que modélisée » : matière réelle du maillage (coque si creux)
+    const Vm = Math.min(Vout, imp.rc.Vmat), Vc = Math.max(0, Vout - Vm);
+    cav = { volume: Vc, centroid: Vc > 1 ? [0, 1, 2].map((k) => (Vout * solid.centroid[k] - Vm * imp.rc.Cmat[k]) / Vc) : solid.centroid };
+  } else {
+    const cavSoup = infill < 1 ? buildCavity(design, design.print.wall, 60, 40) : null;
+    cav = cavSoup ? soupVolume(cavSoup) : { volume: 0, centroid: solid.centroid };
+  }
   const hole = leaderHoleSoup(design);
   const holeV = hole ? Math.PI * (design.features.leaderHole.dia / 2) ** 2 * P.L * 0.9 : 0;
   const Vcav = Math.max(0, cav.volume);
@@ -181,13 +201,13 @@ export function computeMassProps(design, water = 'fresh') {
 
   const items = [];
   items.push({ key: 'shell', mass: Vshell * rho, pos: Cshell, disp: Vout - holeV, dispPos: solid.centroid });
-  if (infill > 0 && Vcav > 0) items.push({ key: 'infill', mass: Vcav * infill * rho, pos: cav.centroid, disp: 0 });
+  if (infill > 0 && Vcav > 0 && !(imp && importMassMode(design) === 'mesh')) items.push({ key: 'infill', mass: Vcav * infill * rho, pos: cav.centroid, disp: 0 });
 
-  const area = soupArea(buildSolidBody(design, 70, 40));
+  const area = imp ? imp.area : soupArea(buildSolidBody(design, 70, 40));
   const coat = Math.max(0, design.print.coat ?? 0.12);
   if (coat > 0) items.push({ key: 'coat', mass: area * coat * 1.15 / 1000, pos: solid.centroid, disp: area * coat, dispPos: solid.centroid });
 
-  if (design.lip.enabled) {
+  if (design.lip.enabled && !imp) {
     const lv = soupVolume(buildLipSoup(design));
     const F = lipFrame(design);
     const exposed = design.lip.length / (design.lip.length + F.insert);
@@ -304,9 +324,13 @@ export function autoHardware(design, water = 'fresh') {
   let changed = false;
   for (let it = 0; it < 3; it++) {
     const mp = computeMassProps(design, water);
-    const row = hardwareFor(mp.mass);
-    const size = hk.type === 'single' ? row.single : row.treble;
-    const ring = mp.mass > 110 ? row.ringAlt || row.ring : row.ring;
+    // hystérésis de ±5 % autour des seuils : évite les changements de taille en boucle
+    const pick = (m) => { const r = hardwareFor(m); return { size: hk.type === 'single' ? r.single : r.treble, ring: m > 110 ? r.ringAlt || r.ring : r.ring }; };
+    const mid = pick(mp.mass), lo = pick(mp.mass * 0.95), hi = pick(mp.mass * 1.05);
+    const cur = hk.tail.enabled ? hk.tail.size : hk.belly[0]?.size;
+    const keep = cur === lo.size || cur === hi.size;
+    const size = keep ? cur : mid.size;
+    const ring = keep && (hk.ring === lo.ring || hk.ring === hi.ring) ? hk.ring : mid.ring;
     let c = false;
     for (const b of hk.belly) if (b.size !== size) { b.size = size; c = true; }
     if (hk.tail.size !== size) { hk.tail.size = size; c = true; }
@@ -316,4 +340,36 @@ export function autoHardware(design, water = 'fresh') {
   }
   void hookSpec;
   return changed;
+}
+
+// Lest (g) + quincaillerie cohérents pour atteindre l'objectif. Pour chaque taille d'hameçon possible,
+// on calcule le lest ; on garde la première combinaison que la règle de taille automatique conserve.
+export function solveBallast(design, targetId, water = 'fresh') {
+  const solveFrozen = (d) => {
+    for (let it = 0; it < 6; it++) {
+      const mp = computeMassProps(d, water);
+      const delta = ballastForTarget(d, mp, targetId, water);
+      if (Math.abs(delta) < 0.03) break;
+      d.ballast.grams = Math.max(0, d.ballast.grams + delta);
+    }
+    return d;
+  };
+  if (!design.hooks.auto) return { grams: Math.round(solveFrozen(structuredClone(design)).ballast.grams * 10) / 10, hooks: null };
+  const single = design.hooks.type === 'single';
+  const rows = HARDWARE_TABLE.filter((r, i, a) => a.findIndex((q) => (single ? q.single : q.treble) === (single ? r.single : r.treble)) === i);
+  let fallback = null;
+  for (const r of rows) {
+    const d = structuredClone(design);
+    const size = single ? r.single : r.treble;
+    d.hooks.belly.forEach((b) => { b.size = size; });
+    d.hooks.tail.size = size;
+    d.hooks.ring = r.ring;
+    solveFrozen(d);
+    const probe = structuredClone(d);
+    autoHardware(probe, water);
+    const kept = probe.hooks.tail.size === size && (probe.hooks.belly[0]?.size ?? size) === size;
+    if (!fallback) fallback = d;
+    if (kept) return { grams: Math.round(d.ballast.grams * 10) / 10, hooks: d.hooks };
+  }
+  return { grams: Math.round(fallback.ballast.grams * 10) / 10, hooks: fallback.hooks };
 }

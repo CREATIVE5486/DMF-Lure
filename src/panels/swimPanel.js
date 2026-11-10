@@ -2,7 +2,7 @@ import { h, section, slider, select, segmented, button, stat, icon } from '../ui
 import { T, TL } from '../i18n.js';
 import { state, updateDesign } from '../store.js';
 import { SCENARIOS, LINES, makeHydro, SwimPhysics, KNOT } from '../swimPhysics.js';
-import { BALLAST_TARGETS, ballastForTarget } from '../physics.js';
+import { BALLAST_TARGETS, solveBallast } from '../physics.js';
 import { fmtDepth, fmtSpeed, fmtForce, fmtMass, fmtLen } from '../units.js';
 
 let hud = null, chart = null, benchEl = null, liveEl = null, playBtn = null, gauge = null, badgeEl = null;
@@ -42,9 +42,11 @@ export function render(app) {
   const upd = (fn) => updateDesign(fn, { source: 'swim-live' });
   const tweak = [
     h('p', { class: 'hint' }, T('Les modifications s’appliquent pendant que le leurre nage.', 'Changes apply while the lure keeps swimming.')),
-    slider({ label: T('Longueur du corps', 'Body length'), min: 30, max: 250, step: 1, value: d.body.length, fmt: (v) => fmtLen(v, 0), onInput: (v) => upd((x) => { x.body.length = v; }) }),
-    slider({ label: T('Hauteur', 'Height'), min: 8, max: 80, step: 0.5, value: d.body.height, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.body.height = v; }) }),
-    slider({ label: T('Largeur', 'Width'), min: 5, max: 60, step: 0.5, value: d.body.width, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.body.width = v; }) }),
+    ...(d.type === 'imported' ? [] : [
+      slider({ label: T('Longueur du corps', 'Body length'), min: 30, max: 250, step: 1, value: d.body.length, fmt: (v) => fmtLen(v, 0), onInput: (v) => upd((x) => { x.body.length = v; }) }),
+      slider({ label: T('Hauteur', 'Height'), min: 8, max: 80, step: 0.5, value: d.body.height, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.body.height = v; }) }),
+      slider({ label: T('Largeur', 'Width'), min: 5, max: 60, step: 0.5, value: d.body.width, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.body.width = v; }) }),
+    ]),
     ...(d.lip.enabled ? [
       slider({ label: T('Bavette — longueur', 'Lip — length'), min: 4, max: 90, step: 0.5, value: d.lip.length, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.lip.length = v; }) }),
       slider({ label: T('Bavette — largeur', 'Lip — width'), min: 4, max: 60, step: 0.5, value: d.lip.width, fmt: (v) => fmtLen(v), onInput: (v) => upd((x) => { x.lip.width = v; }) }),
@@ -197,8 +199,8 @@ export function frame(app) {
         ] : [stat(T('Vitesse de chute', 'Sink rate'), fmtSpeed(Math.max(0, -sim.vel.y)))]),
         stat(T('Profondeur', 'Depth'), fmtDepth(depth)),
         h('div', { class: 'target-row' }, ...BALLAST_TARGETS.slice(0, 3).map((t) => button(TL({ fr: t.fr, en: t.en }), () => {
-          const delta = ballastForTarget(state.design, app.massProps, t.id, state.water);
-          updateDesign((x) => { x.ballast.grams = Math.max(0, Math.round((x.ballast.grams + delta) * 10) / 10); }, { source: 'swim-live' });
+          const r = solveBallast(state.design, t.id, state.water);
+          updateDesign((x) => { x.ballast.grams = r.grams; if (r.hooks) x.hooks = r.hooks; }, { source: 'swim-live' });
         }, { cls: 'small' }))),
       );
     } else {

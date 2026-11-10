@@ -132,7 +132,7 @@ export class Studio {
     const span = Math.max(80, size.x, size.z * 1.3, size.y * 2);
     const prev = this.bedSpan;
     this.bedSpan = span;
-    if (this.mode === 'export' && (!prev || Math.abs(prev - span) > 20)) this.view('bed');
+    if (this.mode === 'export' && (!prev || Math.abs(prev - span) > 20)) this.view('bed', false);
   }
 
   setMode(mode) {
@@ -163,7 +163,7 @@ export class Studio {
       belly: [new THREE.Vector3(0, -d * 0.9, 0.01), new THREE.Vector3(0, 0, 0)],
       front: [new THREE.Vector3(-d * 0.9, 0, 0.01), new THREE.Vector3(0, 0, 0)],
       back: [new THREE.Vector3(d * 0.9, 0, 0.01), new THREE.Vector3(0, 0, 0)],
-      bed: [new THREE.Vector3(0, (this.bedSpan || 200) * 1.05, (this.bedSpan || 200) * 0.95), new THREE.Vector3(0, 0, 0)],
+      bed: [new THREE.Vector3(0, (this.bedSpan || 200) * 1.55, (this.bedSpan || 200) * 1.35), new THREE.Vector3(0, 0, 0)],
     };
     const p = presets[name] || presets.reset;
     if (!animate) {

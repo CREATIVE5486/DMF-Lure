@@ -98,6 +98,7 @@ export const LURE_TYPES = {
   skirt: { fr: 'Jupe de traîne', en: 'Trolling skirt' },
   popper: { fr: 'Popper', en: 'Popper' },
   soft: { fr: 'Leurre souple', en: 'Soft lure' },
+  imported: { fr: 'Modèle importé', en: 'Imported model' },
 };
 
 export function baseDesign() {
@@ -345,6 +346,7 @@ export function normalizeDesign(d) {
   out.body.bottom = pts(out.body.bottom, base.body.bottom);
   out.body.plan = pts(out.body.plan, base.body.plan);
   if (!LURE_TYPES[out.type]) out.type = out.lip.enabled ? 'minnow' : 'stickbait';
+  if (out.type === 'imported' && !out.imported?.id) out.type = out.lip.enabled ? 'minnow' : 'stickbait';
   if (!Array.isArray(out.hooks.belly)) out.hooks.belly = base.hooks.belly;
   const table = out.hooks.type === 'single' ? SINGLES : TREBLES;
   const fix = (s) => (table[OLD_SIZE(s)] ? OLD_SIZE(s) : Object.keys(table)[3]);
@@ -355,4 +357,28 @@ export function normalizeDesign(d) {
   if (!BALLAST_MATERIALS[out.ballast.material]) out.ballast.material = 'tungsten';
   out.version = DESIGN_VERSION;
   return out;
+}
+
+// Design complet à partir d'un modèle importé (forme fixe, quincaillerie à placer)
+export function designFromImport(proc, meta) {
+  const d = baseDesign();
+  d.type = 'imported';
+  d.name = (meta.fileName || 'Leurre importé').replace(/\.(stl|3mf|step|stp)$/i, '').slice(0, 40);
+  d.imported = { id: meta.id, fileName: meta.fileName, format: meta.format, params: meta.params };
+  d.body = { ...d.body, ...structuredClone(proc.body) };
+  if (proc.lip) {
+    d.lip = { ...d.lip, ...proc.lip, clear: false };
+    d.lineTie = { mode: proc.lip.angle < 35 && proc.lip.length > proc.body.height * 0.8 ? 'lip' : 'nose', lipPos: 0.45 };
+  } else {
+    d.lip = { ...d.lip, enabled: false };
+    d.lineTie = { mode: 'nose', lipPos: 0.4 };
+  }
+  const L = d.body.length;
+  d.hooks = { ...d.hooks, auto: true, type: 'treble', belly: L < 70 ? [{ u: 0.42, size: '4' }] : L < 140 ? [{ u: 0.3, size: '4' }, { u: 0.62, size: '4' }] : [{ u: 0.36, size: '4' }], tail: { enabled: true, size: '4', trail: 0 } };
+  d.eyes = { ...d.eyes, enabled: false };
+  d.features = { ...d.features, skirt: { ...d.features.skirt, enabled: false }, paddle: { ...d.features.paddle, enabled: false }, leaderHole: { ...d.features.leaderHole, enabled: false } };
+  d.ballast = { grams: 0, u: 0.45, material: 'tungsten' };
+  d.print = { ...d.print, lipIntegrated: true };
+  d.paintPreset = 'white';
+  return d;
 }

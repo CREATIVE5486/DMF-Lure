@@ -17,6 +17,17 @@ Il fonctionne entièrement dans le navigateur (PC, Mac, tablette, téléphone), 
 
 Autres fonctions : bibliothèque « Mes leurres » (enregistrement local automatique), annuler/rétablir, import/export de projets pour partager avec des amis, unités mm·g ou in·oz, français / anglais, installable comme une application (PWA).
 
+### Importer ses propres leurres
+
+Bouton **« Importer mon leurre (STL, 3MF, STEP) »** dans Conception (ou *Mes leurres → Importer un modèle 3D*) :
+
+- **Formats** : STL (binaire ou texte), 3MF (avec composants et transformations), **STEP** (lu par OpenCascade en WebAssembly, chargé à la demande).
+- **Leurre entier, demi-coquille ou les 2 moitiés** : une demi-coquille est reconnue grâce à sa face de joint plane et **complétée automatiquement par symétrie** ; une cavité modélisée est détectée.
+- **Orientation et unités automatiques**, avec boutons pour tourner, inverser avant/arrière ou haut/bas, et choisir les unités.
+- **Bavette détectée** (longueur, largeur, angle, épaisseur) pour le calcul de nage, réglable.
+- **Volumes exacts** par lancer de rayons sur le maillage : eau déplacée, matière, ligne de flottaison et assiette.
+- Le leurre est ensuite **équipé** comme les autres : armature, lest (billes visibles en mode rayons X), hameçons et anneaux brisés dimensionnés selon le poids, objectifs de lestage. On peut le peindre, le simuler en nage, et en tirer des demi-coques, un moule ou un contre-moule.
+
 ## Utiliser
 
 ### En ligne (gratuit, via GitHub Pages)

@@ -2,7 +2,7 @@
 
 Corps de leurre relevé sur un **Jackson Artist FR105 Heavy Weight** (105 mm), imprimé en
 **deux demi-coques** (coupe au plan de symétrie) assemblées au **jus d'ABS**, avec **armature inox Ø1,6
-traversante**, **4 billes de tungstène Ø5** et **pions de centrage ABS**. La bavette fait corps avec le
+traversante**, **4 billes de tungstène Ø5** et **pions de centrage en tige inox Ø1,6**. La bavette fait corps avec le
 leurre, avec un fondu arrondi sous le menton. L'armature se plie sur un **gabarit à pions** (clous Ø2,92).
 
 ![leurre](docs/leurre_iso.png)
@@ -14,8 +14,8 @@ leurre, avec un fondu arrondi sous le menton. L'armature se plie sur un **gabari
 
 | Fichier | Contenu |
 |---|---|
-| `plateau_demi_coques.3mf` | coque A + coque B + 6 pions, déjà posés face plane sur le plateau → **à ouvrir dans le slicer** |
-| `demi_coque_A.stl`, `demi_coque_B.stl`, `pions_centrage.stl` | les mêmes, séparés |
+| `plateau_demi_coques.3mf` | coque A + coque B, déjà posées face plane sur le plateau → **à ouvrir dans le slicer** |
+| `demi_coque_A.stl`, `demi_coque_B.stl` | les mêmes, séparées |
 | `gabarit_pions_impression.stl`, `gabarit_eprouvette.stl` | gabarit de pliage de l'armature, éprouvette de jeu des trous |
 | `armature_plan.pdf` | armature cotée 2:1 (entraxes des pions) + vue 1:1, coordonnées des pions, gamme |
 | `leurre.step`, `armature_fil.step`, `gabarit_pions.step` | CAO |
@@ -32,7 +32,9 @@ Paramètres : `C` dans `cad/demi_coques.py` (rainure, serrage, pions), `P` dans 
 * ABS, buse 0,4, couches 0,2, **remplissage 100 %** (l'équilibre est calculé pour un corps plein).
 * **Compensation de pied d'éléphant à 0 ou très faible** : la rainure et les logements sont sur la face
   plane ; un pied d'éléphant fort ferme les points de serrage.
-* Pions : imprimés debout, Ø2,4 × 4,2 mm, 6 pièces (4 + 2 de rechange).
+* Centrage : **4 bouts de tige inox Ø1,6 × 5,4 mm** dans des trous borgnes **Ø1,8 × 3 mm** de chaque côté
+  (ajusté glissant une fois imprimé ; si c'est trop serré, passer un foret Ø1,8 à la main, trop lâche : `pion_trou_d`
+  dans `C`). Ébavurer les bouts de tige à la lime.
 
 ## Ce qui tient l'armature pendant le collage
 
@@ -50,7 +52,7 @@ Paramètres : `C` dans `cad/demi_coques.py` (rainure, serrage, pions), `P` dans 
 1. Ébavurer, tester à blanc : fil clipsé dans A, billes, pions, fermer avec B.
 2. Une goutte de cyano dans chaque logement de A, poser les **4 billes**.
 3. **Clipser l'armature** dans A (l'épingle ventrale et les œillets sortent par les encoches).
-4. Enfoncer les **4 pions** dans A.
+4. Enfoncer les **4 bouts de tige inox** dans A (une goutte de cyano au fond).
 5. Jus d'ABS (ABS + acétone, consistance crème) au pinceau sur les deux faces planes, en évitant la rainure.
 6. Fermer B, serrer (pinces à linge / élastiques), laisser sécher 24 h, poncer le joint.
 

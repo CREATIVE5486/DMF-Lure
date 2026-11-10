@@ -7,7 +7,7 @@
       serrage où le fil se clipse -> le fil reste plaqué et à plat pendant le collage ;
     - coque B (côté droit) : rainure avec jeu (absorbe un fil pas parfaitement plan).
 * Billes Ø5 : logements sphériques à cheval sur les deux coques (centre au plan médian).
-* Pions de centrage ABS imprimés (fondent avec le jus d'ABS) dans des trous borgnes.
+* Pions de centrage : bouts de tige inox Ø1.6 dans des trous borgnes Ø1.8.
 
 Lancer :  python3 cad/demi_coques.py   -> out/
 """
@@ -35,8 +35,11 @@ C = dict(
     serrage_pas=12.0,      # espacement des points de serrage le long du fil
     # billes
     bille_jeu=0.1,         # jeu sur le rayon des logements sphériques
-    # pions de centrage (ABS imprimé)
-    pion_d=2.4, pion_trou_d=2.6, pion_prof=2.3, pion_long=4.2,
+    # pions de centrage : bouts de tige inox Ø1.6 dans des trous borgnes
+    pion_d=1.6,            # Ø de la tige inox
+    pion_trou_d=1.8,       # Ø du trou (+0.2 : le FDM resserre ~0.15 -> ajusté glissant)
+    pion_prof=3.0,         # profondeur du trou dans chaque coque
+    pion_jeu_fond=0.3,     # jeu en bout : tige coupée à 2 x (prof - jeu)
     pions_fenetres=((10.0, 26.0), (29.0, 38.0), (44.0, 56.0), (62.0, 80.0)),
     bille_sous_tige=3.0,   # centre des billes au moins 3 mm sous la tige (lest bas)
 )
@@ -228,32 +231,22 @@ def construire():
                 serrage=points_serrage())
 
 
-def pion_solide():
-    rp = C["pion_d"] / 2
-    return (cq.Workplane("XY").circle(rp).extrude(C["pion_long"])
-            .faces(">Z or <Z").edges().chamfer(0.3))
-
-
 def exporter(r):
     os.makedirs(OUT, exist_ok=True)
     tol = dict(tolerance=0.01, angularTolerance=0.1)
     # A : face plane (z=0, en haut) -> retournée contre le plateau ; B : déjà face plane en bas
     A_imp = r["A"].rotate((0, 0, 0), (1, 0, 0), 180)
     B_imp = r["B"].translate((0, 40, 0))
-    nb_pions = len(r["pions"]) + 2
-    pions = None
-    for i in range(nb_pions):
-        p = pion_solide().translate((-12 + 5 * i, -30, 0))
-        pions = p if pions is None else pions.union(p)
     cq.exporters.export(A_imp, os.path.join(OUT, "demi_coque_A.stl"), **tol)
     cq.exporters.export(r["B"], os.path.join(OUT, "demi_coque_B.stl"), **tol)
-    cq.exporters.export(pions, os.path.join(OUT, "pions_centrage.stl"), **tol)
     cq.exporters.export(r["A"].union(r["B"]), os.path.join(OUT, "leurre.step"))
     L.export_3mf(os.path.join(OUT, "plateau_demi_coques.3mf"),
-                 [("demi_coque_A", A_imp), ("demi_coque_B", B_imp), ("pions_centrage", pions)])
+                 [("demi_coque_A", A_imp), ("demi_coque_B", B_imp)])
     b = L.bilan(r["piece"], r["plein"], r["billes"])
     rapport = dict(
         billes=r["billes"], billes_possibles=r["billes_tous"], pions=r["pions"],
+        tige_pion=dict(diametre=C["pion_d"], trou=C["pion_trou_d"],
+                       longueur_coupe=round(2 * (C["pion_prof"] - C["pion_jeu_fond"]), 1)),
         points_serrage=[(round(x, 1), round(y, 1)) for x, y in r["serrage"]],
         bilan=b, coque=C, armature=ARM.reperes,
         pions_pliage=[dict(nom=p["nom"], c=(round(p["c"][0], 2), round(p["c"][1], 2))) for p in ARM.pions],

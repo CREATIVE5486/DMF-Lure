@@ -53,22 +53,27 @@
   ],
   "pions": [
     [
-      25.0,
-      9.47
+      26.0,
+      3.92
     ],
     [
       33.5,
-      7.01
+      6.01
     ],
     [
       50.0,
-      3.54
+      3.79
     ],
     [
       71.0,
       1.15
     ]
   ],
+  "tige_pion": {
+    "diametre": 1.6,
+    "trou": 1.8,
+    "longueur_coupe": 5.4
+  },
   "points_serrage": [
     [
       2.4,
@@ -113,7 +118,7 @@
   ],
   "bilan": {
     "volume_ext_cm3": 13.96,
-    "masse_abs_g": 13.57,
+    "masse_abs_g": 13.6,
     "longueur_fil_mm": 168.1,
     "masse_fil_g": 2.67,
     "n_billes": 4,
@@ -129,66 +134,66 @@
         "masse_totale_g": 21.2,
         "cg": [
           42.67,
-          2.49
+          2.5
         ],
-        "gb_mm": 0.6,
+        "gb_mm": 0.59,
         "dx_mm": 2.55,
-        "assiette_deg": 76.8
+        "assiette_deg": 77.0
       },
       "tungstene_avec_hamecons": {
         "masse_billes_g": 5.0,
         "masse_totale_g": 23.0,
         "cg": [
           45.06,
-          1.49
+          1.5
         ],
-        "gb_mm": 1.6,
+        "gb_mm": 1.59,
         "dx_mm": 0.16,
-        "assiette_deg": 5.7
+        "assiette_deg": 5.8
       },
       "plomb": {
         "masse_billes_g": 3.0,
         "masse_totale_g": 19.2,
         "cg": [
           43.9,
-          2.62
+          2.63
         ],
-        "gb_mm": 0.47,
+        "gb_mm": 0.46,
         "dx_mm": 1.32,
-        "assiette_deg": 70.5
+        "assiette_deg": 70.9
       },
       "plomb_avec_hamecons": {
         "masse_billes_g": 3.0,
         "masse_totale_g": 21.0,
         "cg": [
-          46.42,
-          1.51
+          46.41,
+          1.53
         ],
-        "gb_mm": 1.58,
-        "dx_mm": -1.2,
-        "assiette_deg": -37.1
+        "gb_mm": 1.57,
+        "dx_mm": -1.19,
+        "assiette_deg": -37.3
       },
       "acier": {
         "masse_billes_g": 2.1,
         "masse_totale_g": 18.3,
         "cg": [
           44.54,
-          2.69
+          2.7
         ],
-        "gb_mm": 0.4,
+        "gb_mm": 0.39,
         "dx_mm": 0.68,
-        "assiette_deg": 59.7
+        "assiette_deg": 60.3
       },
       "acier_avec_hamecons": {
         "masse_billes_g": 2.1,
         "masse_totale_g": 20.1,
         "cg": [
           47.11,
-          1.53
+          1.54
         ],
-        "gb_mm": 1.57,
+        "gb_mm": 1.55,
         "dx_mm": -1.89,
-        "assiette_deg": -50.4
+        "assiette_deg": -50.5
       }
     }
   },
@@ -200,10 +205,10 @@
     "serrage_long": 3.0,
     "serrage_pas": 12.0,
     "bille_jeu": 0.1,
-    "pion_d": 2.4,
-    "pion_trou_d": 2.6,
-    "pion_prof": 2.3,
-    "pion_long": 4.2,
+    "pion_d": 1.6,
+    "pion_trou_d": 1.8,
+    "pion_prof": 3.0,
+    "pion_jeu_fond": 0.3,
     "pions_fenetres": [
       [
         10.0,

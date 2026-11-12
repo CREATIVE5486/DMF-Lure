@@ -52,7 +52,7 @@ P = dict(
     # rainure du fil (comme le minnow)
     jeu_diam=0.5, prof_A=0.9, prof_B=1.1, serrage_l=1.6, serrage_long=3.0, serrage_pas=11.0,
     # allègement
-    paroi=1.6, cloisons_pas=9.0, cloison_ep=1.2, bande_fil=2.6, nez_plein=9.0, queue_plein=86.0,
+    paroi=1.6, cloisons_pas=9.0, cloison_ep=1.2, bande_fil=2.6, nez_plein=14.0, queue_plein=86.0,
     # lest
     bille_d=5.0, bille_jeu=0.1, paroi_bille=0.8, bille_mat="tungstene",
     # pions de centrage (tige inox Ø1.6)
@@ -419,13 +419,9 @@ def construire():
 
     # choix du nombre de billes : on retire aux extrémités pour l'assiette visée
     best = None
-    cand = [billes_tous]
-    n = len(billes_tous)
-    for k in range(1, n - 1):
-        for i in range(0, k + 1):
-            sub = billes_tous[i:n - (k - i)]
-            if sub:
-                cand.append(sub)
+    import itertools
+    cand = [list(c) for n in range(1, len(billes_tous) + 1)
+            for c in itertools.combinations(billes_tous, n)]
     lo, hi = P["assiette_cible"]
     A0, B0, cav0 = assembler(billes_tous)
     v_cav = cav0.val().Volume()

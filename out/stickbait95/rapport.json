@@ -1,0 +1,257 @@
+{
+  "billes": [
+    [
+      12.75,
+      -5.06
+    ],
+    [
+      18.55,
+      -5.75
+    ],
+    [
+      24.35,
+      -6.16
+    ],
+    [
+      30.15,
+      -6.3
+    ],
+    [
+      44.95,
+      -5.64
+    ],
+    [
+      50.75,
+      -5.1
+    ]
+  ],
+  "billes_possibles": [
+    [
+      12.75,
+      -5.06
+    ],
+    [
+      18.55,
+      -5.75
+    ],
+    [
+      24.35,
+      -6.16
+    ],
+    [
+      30.15,
+      -6.3
+    ],
+    [
+      44.95,
+      -5.64
+    ],
+    [
+      50.75,
+      -5.1
+    ]
+  ],
+  "pions_centrage": [
+    [
+      5.5,
+      3.8
+    ],
+    [
+      24.0,
+      6.5
+    ],
+    [
+      56.0,
+      6.0
+    ],
+    [
+      78.0,
+      2.8
+    ]
+  ],
+  "tige_pion": {
+    "d": 1.6,
+    "trou": 1.8,
+    "longueur_coupe": 4.6
+  },
+  "points_serrage": [
+    [
+      1.6,
+      -0.6
+    ],
+    [
+      12.7,
+      -0.6
+    ],
+    [
+      23.9,
+      -0.6
+    ],
+    [
+      34.9,
+      -1.1
+    ],
+    [
+      40.3,
+      -8.2
+    ],
+    [
+      45.0,
+      -0.6
+    ],
+    [
+      56.1,
+      -0.6
+    ],
+    [
+      67.1,
+      -0.6
+    ],
+    [
+      78.2,
+      -0.6
+    ],
+    [
+      89.2,
+      -0.6
+    ]
+  ],
+  "pions_pliage": [
+    {
+      "nom": "œillet de nez",
+      "c": [
+        -3.06,
+        0.2
+      ],
+      "pli": 319
+    },
+    {
+      "nom": "épingle gauche",
+      "c": [
+        33.48,
+        -2.86
+      ],
+      "pli": 90
+    },
+    {
+      "nom": "épingle ventrale",
+      "c": [
+        38.0,
+        -11.34
+      ],
+      "pli": 180
+    },
+    {
+      "nom": "épingle droite",
+      "c": [
+        42.52,
+        -2.86
+      ],
+      "pli": 90
+    },
+    {
+      "nom": "œillet de queue",
+      "c": [
+        96.86,
+        0.2
+      ],
+      "pli": 319
+    }
+  ],
+  "fil_coupe_mm": 175,
+  "bilan": {
+    "volume_ext_cm3": 15.95,
+    "poussee_eau_de_mer_g": 16.4,
+    "masse_abs_g": 11.97,
+    "masse_fil_g": 2.46,
+    "longueur_fil_mm": 154.6,
+    "centre_carene": [
+      40.1,
+      1.82
+    ],
+    "cas": {
+      "tungstene": {
+        "masse_g": 21.9,
+        "cg": [
+          37.3,
+          -1.62
+        ],
+        "gb_mm": 3.43,
+        "assiette_deg": 39.6,
+        "densite": 1.37
+      },
+      "tungstene_avec_hamecons": {
+        "masse_g": 23.9,
+        "cg": [
+          40.1,
+          -2.64
+        ],
+        "gb_mm": 4.45,
+        "assiette_deg": 0.8,
+        "densite": 1.5
+      },
+      "plomb": {
+        "masse_g": 18.9,
+        "cg": [
+          38.4,
+          -0.97
+        ],
+        "gb_mm": 2.78,
+        "assiette_deg": 31.6,
+        "densite": 1.18
+      },
+      "plomb_avec_hamecons": {
+        "masse_g": 20.9,
+        "cg": [
+          41.5,
+          -2.2
+        ],
+        "gb_mm": 4.01,
+        "assiette_deg": -18.8,
+        "densite": 1.31
+      }
+    }
+  },
+  "parametres": {
+    "fil_d": 1.6,
+    "clou_d": 2.92,
+    "jeu_nez": 0.4,
+    "y_axe": -0.6,
+    "x_ventre": 38.0,
+    "jour_ventre": 3.0,
+    "x_retour_nez": 5.0,
+    "x_retour_queue": 89.0,
+    "jeu_queue": 0.4,
+    "jeu_diam": 0.5,
+    "prof_A": 0.9,
+    "prof_B": 1.1,
+    "serrage_l": 1.6,
+    "serrage_long": 3.0,
+    "serrage_pas": 11.0,
+    "paroi": 1.6,
+    "cloisons_pas": 9.0,
+    "cloison_ep": 1.2,
+    "bande_fil": 2.6,
+    "nez_plein": 14.0,
+    "queue_plein": 86.0,
+    "bille_d": 5.0,
+    "bille_jeu": 0.1,
+    "paroi_bille": 0.8,
+    "bille_mat": "tungstene",
+    "pion_trou_d": 1.8,
+    "pion_prof": 2.6,
+    "pion_jeu_fond": 0.3,
+    "pion_boss_r": 2.4,
+    "oeil_pos": [
+      8.5,
+      3.0
+    ],
+    "oeil_d": 6.0,
+    "oeil_prof": 0.5,
+    "hamecon_g": 1.0,
+    "assiette_cible": [
+      -3.0,
+      3.0
+    ]
+  }
+}

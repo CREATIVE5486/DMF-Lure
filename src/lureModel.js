@@ -1,7 +1,7 @@
 // Construction du modèle 3D affiché (corps peint, bavette, yeux, quincaillerie).
 import * as THREE from 'three';
 import {
-  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal, buildPaddleSoup, smoothGeometry, ringSpec, armaturePath,
+  buildBodyGeometry, buildLipGeometry, lineTiePoint, hangerPoints, makeProfile, surfaceNormal, buildPaddleSoup, smoothGeometry, ringSpec, armaturePath, pocketSoup, pocketBalls,
 } from './geometry.js';
 import { BALLAST_MATERIALS } from './design.js';
 
@@ -278,7 +278,20 @@ export function buildLure(design, texture, opts = {}) {
     const pts = armaturePath(design).map((p) => new THREE.Vector3(...p));
     const wireR = design.body.length > 140 ? 0.6 : design.body.length > 80 ? 0.5 : 0.4;
     const wire = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05), Math.max(40, pts.length * 12), wireR, 8, false), metal);
+    if (design.interior?.wire?.enabled === false) wire.visible = false;
     internals.add(wire);
+    // logements dessinés (onglet Intérieur)
+    for (const pk of design.interior?.pockets || []) {
+      const col = pk.type === 'air' ? 0x45c8ff : pk.type === 'rattle' ? 0xc58cff : 0xffa64d;
+      const m = new THREE.Mesh(smoothGeometry(pocketSoup(pk)), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.28, depthWrite: false }));
+      m.userData.pocketId = pk.id;
+      internals.add(m);
+      const bm = BALLAST_MATERIALS[pk.ballMat] || BALLAST_MATERIALS.steel;
+      const bgeo = new THREE.SphereGeometry(Math.max(0.3, pk.ballDia / 2), 16, 12);
+      const bmat = new THREE.MeshStandardMaterial({ color: pk.ballMat === 'lead' ? 0x6b6f76 : pk.ballMat === 'steel' ? 0xd6dbe0 : 0x9aa0a8, metalness: 0.85, roughness: 0.3 });
+      void bm;
+      for (const c of pocketBalls(pk)) { const b = new THREE.Mesh(bgeo, bmat); b.position.set(...c); internals.add(b); }
+    }
     const g = Math.max(0, design.ballast.grams || 0);
     if (g > 0) {
       const bm = BALLAST_MATERIALS[design.ballast.material] || BALLAST_MATERIALS.lead;

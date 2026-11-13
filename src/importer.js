@@ -132,6 +132,44 @@ export async function readModelFile(name, buf) {
   throw new Error(`Format non pris en charge : .${ext}`);
 }
 
+// Simplification par regroupement de sommets sur une grille (maillages très lourds : scans, STL haute résolution)
+export function decimate(soup, maxTris = 220000) {
+  const n = soup.length / 9;
+  if (n <= maxTris) return soup;
+  const b = bounds(soup);
+  const maxDim = Math.max(b.size[0], b.size[1], b.size[2]) || 1;
+  let grid = Math.min(999, Math.max(80, Math.round(Math.sqrt(maxTris / 2.2) * 1.15)));
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const cell = maxDim / grid;
+    const key = (i) => Math.floor((soup[i] - b.min[0]) / cell) * 1e6 + Math.floor((soup[i + 1] - b.min[1]) / cell) * 1e3 + Math.floor((soup[i + 2] - b.min[2]) / cell);
+    const ids = new Map();
+    const sum = [];
+    const vid = new Uint32Array(n * 3);
+    for (let v = 0; v < n * 3; v++) {
+      const i = v * 3;
+      const k = key(i);
+      let id = ids.get(k);
+      if (id === undefined) { id = sum.length / 4; ids.set(k, id); sum.push(0, 0, 0, 0); }
+      sum[id * 4] += soup[i]; sum[id * 4 + 1] += soup[i + 1]; sum[id * 4 + 2] += soup[i + 2]; sum[id * 4 + 3]++;
+      vid[v] = id;
+    }
+    const seen = new Set();
+    const out = [];
+    for (let t = 0; t < n; t++) {
+      const a = vid[t * 3], c = vid[t * 3 + 1], d = vid[t * 3 + 2];
+      if (a === c || c === d || a === d) continue;
+      const lo = Math.min(a, c, d), hi = Math.max(a, c, d), mid = a + c + d - lo - hi;
+      const k = `${lo},${mid},${hi},${a < c ? 1 : 0}${c < d ? 1 : 0}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      for (const v of [a, c, d]) out.push(sum[v * 4] / sum[v * 4 + 3], sum[v * 4 + 1] / sum[v * 4 + 3], sum[v * 4 + 2] / sum[v * 4 + 3]);
+    }
+    if (out.length / 9 <= maxTris * 1.15 || grid <= 80) return new Float32Array(out);
+    grid = Math.round(grid * 0.8);
+  }
+  return soup;
+}
+
 export function mergeSoups(list) {
   const n = list.reduce((s, p) => s + p.length, 0);
   const out = new Float32Array(n);
@@ -159,7 +197,8 @@ function mapSoup(s, fn, flip = false) {
 // Composantes connexes (par sommets partagés)
 function components(soup) {
   const { triangles } = weld(soup, 1e-3);
-  const nv = Math.max(...triangles) + 1;
+  let nv = 0;
+  for (let i = 0; i < triangles.length; i++) if (triangles[i] >= nv) nv = triangles[i] + 1;
   const parent = new Int32Array(nv).map((_, i) => i);
   const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
   for (let t = 0; t < triangles.length; t += 3) {

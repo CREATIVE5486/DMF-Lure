@@ -7,7 +7,7 @@ import { CFDLab } from './cfd.js';
 import { computeMassProps, autoHardware } from './physics.js';
 import { state, on, emit, updateDesign, replaceDesign, undo, redo, canUndo, canRedo, resetHistory } from './store.js';
 import { presetDesign, normalizeDesign, PRESETS, designFromImport } from './design.js';
-import { readModelFile, processImport, mergeSoups, defaultImportParams } from './importer.js';
+import { readModelFile, processImport, mergeSoups, defaultImportParams, decimate } from './importer.js';
 import { setImported, importedRaw, importedFor } from './importedStore.js';
 import { h, icon, toast, modal, button } from './ui.js';
 import { T, TL, getLang, setLang } from './i18n.js';
@@ -19,8 +19,9 @@ import * as paintPanel from './panels/paintPanel.js';
 import * as swimPanel from './panels/swimPanel.js';
 import * as cfdPanel from './panels/cfdPanel.js';
 import * as exportPanel from './panels/exportPanel.js';
+import * as interiorPanel from './panels/interiorPanel.js';
 
-const PANELS = { design: designPanel, paint: paintPanel, swim: swimPanel, cfd: cfdPanel, export: exportPanel };
+const PANELS = { design: designPanel, interior: interiorPanel, paint: paintPanel, swim: swimPanel, cfd: cfdPanel, export: exportPanel };
 
 /* ------------------------------- squelette ------------------------------- */
 const root = document.getElementById('app');
@@ -28,8 +29,9 @@ const left = h('aside', { class: 'panel left', id: 'left' });
 const right = h('aside', { class: 'panel right', id: 'right' });
 const glCanvas = h('canvas', { id: 'gl', 'aria-label': T('Vue 3D', '3D view') });
 const cfdCanvas = h('canvas', { id: 'cfd', class: 'hidden', 'aria-label': T('Simulation d’écoulement', 'Flow simulation') });
+const sketchEl = h('canvas', { id: 'sketch', class: 'hidden', 'aria-label': T('Schéma coté de l’intérieur', 'Dimensioned interior sketch') });
 const overlay = h('div', { class: 'overlay' });
-const viewport = h('section', { class: 'viewport', id: 'viewport' }, glCanvas, cfdCanvas, overlay);
+const viewport = h('section', { class: 'viewport', id: 'viewport' }, glCanvas, cfdCanvas, sketchEl, overlay);
 const nameInput = h('input', { class: 'name-input', value: state.design.name, 'aria-label': T('Nom du leurre', 'Lure name'), maxlength: 40 });
 const tabsEl = h('nav', { class: 'tabs', role: 'tablist' });
 const undoBtn = h('button', { class: 'icon-btn', type: 'button', title: T('Annuler (Ctrl+Z)', 'Undo (Ctrl+Z)'), onclick: () => doUndo() }, icon('undo'));
@@ -37,6 +39,7 @@ const redoBtn = h('button', { class: 'icon-btn', type: 'button', title: T('Réta
 
 const TABS = () => [
   { id: 'design', label: T('Conception', 'Design'), ic: 'design' },
+  { id: 'interior', label: T('Intérieur', 'Interior'), ic: 'ruler' },
   { id: 'paint', label: T('Peinture', 'Paint'), ic: 'paint' },
   { id: 'swim', label: T('Simulation de nage', 'Swim simulation'), ic: 'swim' },
   { id: 'cfd', label: T('Labo hydro', 'Hydro lab'), ic: 'cfd' },
@@ -95,7 +98,7 @@ const swim = new SwimView(renderer, glCanvas);
 const cfd = new CFDLab(cfdCanvas);
 
 export const app = {
-  renderer, studio, painter, swim, cfd, viewport, overlay, glCanvas, cfdCanvas,
+  renderer, studio, painter, swim, cfd, viewport, overlay, glCanvas, cfdCanvas, sketchCanvas: sketchEl,
   massProps: null,
   get design() { return state.design; },
   rerender: () => rerender(),
@@ -148,6 +151,7 @@ function updateHistoryButtons() {
 }
 app.updateHistoryButtons = updateHistoryButtons;
 
+app.undo = () => doUndo();
 function doUndo() { if (state.tab === 'paint') { painter.undo(); } else undo(); updateHistoryButtons(); }
 function doRedo() { if (state.tab === 'paint') { painter.redo(); } else redo(); updateHistoryButtons(); }
 
@@ -170,8 +174,9 @@ function rerender() {
   overlay.innerHTML = '';
   viewport.dataset.tab = state.tab;
   const id = state.tab;
-  glCanvas.classList.toggle('hidden', id === 'cfd');
+  glCanvas.classList.toggle('hidden', id === 'cfd' || id === 'interior');
   cfdCanvas.classList.toggle('hidden', id !== 'cfd');
+  sketchEl.classList.toggle('hidden', id !== 'interior');
   if (!app.massProps) computeProps();
   if (id === 'swim' && swimDirty) {
     if (lureDirty) rebuildLure();
@@ -217,6 +222,8 @@ function loop(now) {
     swim.render();
   } else if (tab === 'cfd') {
     cfd.frame();
+  } else if (tab === 'interior') {
+    if (lureDirty) rebuildLure();
   } else {
     if (lureDirty) rebuildLure();
     studio.update(dt);
@@ -410,7 +417,13 @@ function importModel() {
     try {
       const soups = [];
       for (const f of files) soups.push(await readModelFile(f.name, await f.arrayBuffer()));
-      const raw = mergeSoups(soups);
+      let raw = mergeSoups(soups);
+      const nTris = raw.length / 9;
+      if (nTris > 220000) {
+        toast(T(`Maillage très détaillé (${Math.round(nTris / 1000)} k triangles) : simplification…`, `Very dense mesh (${Math.round(nTris / 1000)}k triangles): simplifying…`));
+        await new Promise((r) => setTimeout(r, 30));
+        raw = decimate(raw);
+      }
       const id = 'imp_' + Date.now().toString(36);
       const params = defaultImportParams();
       registerImported(id, raw, params);
@@ -492,7 +505,7 @@ window.addEventListener('keydown', (e) => {
   if (typing) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
-  if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-5]$/.test(e.key)) { setTab(TABS()[Number(e.key) - 1].id); return; }
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-6]$/.test(e.key)) { setTab(TABS()[Number(e.key) - 1].id); return; }
   current?.onKey?.(app, e);
 });
 

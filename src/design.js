@@ -1,6 +1,6 @@
 // Modèle de données d'un leurre. Toutes les longueurs sont en millimètres, les masses en grammes.
 
-export const DESIGN_VERSION = 2;
+export const DESIGN_VERSION = 3;
 
 /* ----------------------------- Quincaillerie -----------------------------
    Sources : tableaux fournis (pechextreme.com, discounttackle.com).
@@ -152,6 +152,12 @@ export function baseDesign() {
     eyes: { enabled: true, u: 0.07, theta: 0.95, size: 7, iris: '#f6c800', pupil: '#111111' },
     ballast: { grams: 6, u: 0.4, material: 'tungsten' },
     print: { material: 'PLA', wall: 1.4, infill: 0, coat: 0.15, lipIntegrated: true },
+    // Intérieur : corps creux auto, rainure d'armature, logements (billes, air, hochet)
+    interior: {
+      autoHollow: true,
+      wire: { enabled: true, dia: 1.0, auto: true, points: [] },
+      pockets: [],
+    },
     finish: { roughness: 0.2, metalness: 0.9, clearcoat: 1 },
     paintPreset: 'sardineHolo',
   };
@@ -381,4 +387,31 @@ export function designFromImport(proc, meta) {
   d.print = { ...d.print, lipIntegrated: true };
   d.paintPreset = 'white';
   return d;
+}
+
+/* ----------------------------- Logements intérieurs ----------------------------- */
+export const POCKET_TYPES = {
+  balls: { fr: 'Logement de billes', en: 'Ball pocket' },
+  well: { fr: 'Puits à billes (plan de joint)', en: 'Ball well (joint plane)' },
+  air: { fr: 'Chambre d’air', en: 'Air chamber' },
+  rattle: { fr: 'Chambre hochet', en: 'Rattle chamber' },
+};
+
+let pocketSeq = 0;
+export function newPocket(type, design) {
+  const L = design.body.length, H = design.body.height;
+  const id = 'pk' + Date.now().toString(36) + (pocketSeq++);
+  const bd = Math.max(3, Math.min(8, Math.round(H * 0.18 * 2) / 2));
+  switch (type) {
+    case 'well': return { id, type, shape: 'capsule', axis: 'z', x: L * 0.45, y: -H * 0.12, z: 0, dia: bd + 0.3, length: bd * 2.2, height: 0, width: 0, ballDia: bd, ballCount: 2, ballMat: 'tungsten' };
+    case 'air': return { id, type, shape: 'box', axis: 'x', x: L * 0.55, y: H * 0.1, z: 0, dia: 0, length: L * 0.25, height: H * 0.3, width: design.body.width * 0.35, ballDia: 0, ballCount: 0, ballMat: 'steel' };
+    case 'rattle': return { id, type, shape: 'capsule', axis: 'x', x: L * 0.62, y: 0, z: 0, dia: Math.max(4, bd * 1.3), length: L * 0.16, height: 0, width: 0, ballDia: Math.max(2.5, bd * 0.7), ballCount: 3, ballMat: 'steel' };
+    default: return { id, type: 'balls', shape: 'capsule', axis: 'x', x: L * 0.42, y: -H * 0.15, z: 0, dia: bd + 0.3, length: bd * 4 + 0.6, height: 0, width: 0, ballDia: bd, ballCount: 4, ballMat: 'tungsten' };
+  }
+}
+
+// Masse (g) des billes d'un logement
+export function pocketBallMass(p) {
+  const m = BALLAST_MATERIALS[p.ballMat] || BALLAST_MATERIALS.steel;
+  return Math.max(0, p.ballCount || 0) * (Math.PI / 6) * Math.max(0, p.ballDia || 0) ** 3 * m.density / 1000;
 }

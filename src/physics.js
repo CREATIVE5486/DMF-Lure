@@ -2,11 +2,11 @@
 import {
   makeProfile, buildSolidBody, buildCavity, buildLipSoup, buildPaddleSoup, leaderHoleSoup, soupVolume, soupArea,
   lineTiePoint, hangerPoints, sectionXYZ, lipFrame, ringSpec,
-  importMassMode,
+  importMassMode, pocketVolume,
 } from './geometry.js';
 import { importedFor } from './importedStore.js';
 import { columnsSubmerged } from './importer.js';
-import { MATERIALS, BALLAST_MATERIALS, hardwareFor, hookSpec, HARDWARE_TABLE } from './design.js';
+import { MATERIALS, BALLAST_MATERIALS, hardwareFor, hookSpec, HARDWARE_TABLE, pocketBallMass } from './design.js';
 
 export const WATER = { fresh: 0.998, salt: 1.025 };
 const STEEL = 7.85;
@@ -253,6 +253,17 @@ export function computeMassProps(design, water = 'fresh') {
     const y = -P.bot(u) + wall + Math.min(r, P.bot(u) * 0.6);
     if (Vcav > 0 && vol > Vcav * 0.6) ballastFits = false;
     items.push({ key: 'ballast', mass: bg, pos: [u * P.L, y, 0], disp: infill >= 1 ? 0 : 0 });
+  }
+
+  // logements intérieurs : billes (masse) et matière retirée si le corps n'est pas creux
+  const hollowAuto = design.interior?.autoHollow !== false;
+  for (const pk of design.interior?.pockets || []) {
+    const bm2 = pocketBallMass(pk);
+    if (bm2 > 0) items.push({ key: pk.type === 'rattle' ? 'rattle' : 'balls', mass: bm2, pos: [pk.x, pk.y, pk.z || 0], disp: 0 });
+    if (!hollowAuto) {
+      const removed = pocketVolume(pk) * rho * Math.max(0.15, infill);
+      items.push({ key: 'pocket', mass: -removed, pos: [pk.x, pk.y, pk.z || 0], disp: 0 });
+    }
   }
 
   let mass = 0, disp = 0;

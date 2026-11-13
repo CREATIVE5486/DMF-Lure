@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
 import {
   buildSolidBody, buildCavity, buildLipSoup, buildPaddleSoup, leaderHoleSoup, cylinderSoup, loftRings,
-  armaturePath, weld, soupBounds, makeProfile, lineTiePoint, hangerPoints, repairTJunctions,
+  armaturePath, weld, soupBounds, makeProfile, lineTiePoint, hangerPoints, repairTJunctions, pocketSoup, pocketBalls,
 } from './geometry.js';
 import { BALLAST_MATERIALS } from './design.js';
 import { importedFor } from './importedStore.js';
@@ -134,6 +134,16 @@ function armatureParts(design, r, extend = null) {
   const P = makeProfile(design);
   const yc = (u) => (P.top(u) - P.bot(u)) / 2;
   const tie = lineTiePoint(design).point;
+  const w = design.interior?.wire;
+  if (w && !w.auto && w.points?.length >= 2) {
+    const main = w.points.map(([x, y]) => [x, y, 0]);
+    if (extend) { main.unshift([extend[0], main[0][1], 0]); main.push([extend[1], main.at(-1)[1], 0]); }
+    const stubs = hangerPoints(design).filter((h) => h.kind === 'belly').map((h) => {
+      const u = h.point.x / P.L;
+      return cylinderSoup([h.point.x, yc(u) - P.bot(u) * 0.35, 0], [h.point.x, h.point.y - (extend ? 6 : 0), 0], r * (extend ? 1.15 : 1), 12);
+    });
+    return { main: tubeSoup(main, r), stubs };
+  }
   const main = [[tie.x, tie.y, 0]];
   if (tie.x < P.L * 0.06) main.push([P.L * 0.06, yc(0.06), 0]);
   for (const h of design.hooks.belly.slice().sort((a, b) => a.u - b.u)) {
@@ -155,15 +165,18 @@ export function printSolids(design, { mode = 'halves', hollow = true, wireGroove
   const imp = importedFor(design);
   const integrated = imp ? true : design.print.lipIntegrated !== false;
   let body = imp?.hollowModel ? brushFromSoup(imp.soup) : outerBrush(design, { withLip: integrated });
-  const cav = hollow && (design.print.infill || 0) < 100 ? buildCavity(design, design.print.wall) : null;
+  const cav = hollow && design.interior?.autoHollow !== false && (design.print.infill || 0) < 100 ? buildCavity(design, design.print.wall) : null;
   const hole = leaderHoleSoup(design);
   body = sub(body, brushOf([cav, hole]));
+  // logements dessinés dans l'onglet Intérieur (billes, air, hochet)
+  const pockets = (design.interior?.pockets || []).map((pk) => pocketSoup(pk, 0));
+  if (pockets.length) body = sub(body, brushOf(pockets));
   const out = [];
   if (mode === 'solid') {
     out.push({ key: 'solid', soup: finalSoup(body) });
   } else {
-    if (wireGroove && !hole) {
-      const a = armatureParts(design, 0.7);
+    if (wireGroove && !hole && design.interior?.wire?.enabled !== false) {
+      const a = armatureParts(design, (design.interior?.wire?.dia || 1.2) / 2 + 0.15);
       body = sub(body, brushFromSoup(a.main));
       body = sub(body, brushOf(a.stubs));
     }
@@ -215,6 +228,16 @@ export function moldGeometry(design, o = {}) {
   // billes de lest : tétons de calage (Ø 1,2 mm) depuis chaque coquille
   const bm = BALLAST_MATERIALS[design.ballast.material] || BALLAST_MATERIALS.lead;
   const grams = Math.max(0, design.ballast.grams || 0);
+  const pocketPins = [];
+  for (const pk of design.interior?.pockets || []) {
+    if (pk.type === 'air') continue;
+    for (const [x, y, z] of pocketBalls(pk)) {
+      const u = Math.max(0.05, Math.min(0.95, x / P.L));
+      features.balls.push([x, y, pk.ballDia]);
+      for (const sgn of [1, -1]) pocketPins.push(cylinderSoup([x, y, z + sgn * (pk.ballDia / 2 - 0.15)], [x, y, sgn * (P.hw(u) * 1.6 + 2)], 0.6, 10));
+    }
+  }
+  if (pocketPins.length) { cavity = sub(cavity, brushOf(pocketPins)); features.ballCount = (features.ballCount || 0) + features.balls.length; }
   if (grams > 0) {
     const bd = opt.ballDia || ballDiameterFor(design);
     const per = (Math.PI / 6) * bd ** 3 * bm.density / 1000;

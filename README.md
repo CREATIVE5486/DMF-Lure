@@ -17,6 +17,19 @@ Il fonctionne entièrement dans le navigateur (PC, Mac, tablette, téléphone), 
 
 Autres fonctions : bibliothèque « Mes leurres » (enregistrement local automatique), annuler/rétablir, import/export de projets pour partager avec des amis, unités mm·g ou in·oz, français / anglais, installable comme une application (PWA).
 
+### Conception précise
+
+- **Sections le long du leurre (loft)** : plusieurs stations, chacune avec sa propre forme de section (points déplaçables + cotes en mm), raccordées en douceur — tête en V, ventre plat, dos arrondi… au même endroit que vous le feriez dans un logiciel de CAO.
+- **Atelier de forme** : grand éditeur du profil et de la vue de dessus avec **tableau de cotes en mm** (saisie exacte), ajout/suppression de points et densification.
+
+### Onglet Intérieur
+
+- **Corps creux automatique** (paroi réglable) et **armature** : rainure dans le plan de joint, diamètre du fil, tracé automatique ou **esquisse libre** (points déplaçables, ajout au double-clic).
+- **Logements** : billes en tube, bille seule, **puits à billes ouvert sur le plan de joint**, **chambres d'air**, chambres hochet — forme (tube/oblong, sphère, boîte), orientation, position et dimensions au dixième de mm, nombre/diamètre/matière des billes, ajustement automatique du trou aux billes.
+- **Schéma coté** (vue de côté + vue de dessus, cotes depuis le nez) avec glisser-déposer, **export SVG/PNG**.
+- Contrôle de l'**épaisseur de paroi** autour de chaque logement, **nombre de billes conseillé** pour chaque objectif (flottant mi-hauteur, suspending, coulant…).
+- Les logements et l'armature sont creusés dans les demi-coques exportées et pris en compte dans la masse et la flottaison.
+
 ### Importer ses propres leurres
 
 Bouton **« Importer mon leurre (STL, 3MF, STEP) »** dans Conception (ou *Mes leurres → Importer un modèle 3D*) :

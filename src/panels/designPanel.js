@@ -2,17 +2,23 @@ import { h, section, slider, select, toggle, segmented, button, stat, icon, colo
 import { T, TL } from '../i18n.js';
 import { state, updateDesign } from '../store.js';
 import { PRESETS, TREBLES, SINGLES, SPLIT_RINGS, BALLAST_MATERIALS, LURE_TYPES, hookSpec } from '../design.js';
-import { CurveEditor } from '../editors.js';
+import { CurveEditor, SectionEditor } from '../editors.js';
+import { on } from '../store.js';
+import { modal } from '../ui.js';
+import { makeMonotone } from '../curves.js';
 import { fmtLen, fmtMass, fmtMassSigned, fmtDepth } from '../units.js';
 import { makeHydro, SwimPhysics, KNOT } from '../swimPhysics.js';
 import { BALLAST_TARGETS, ballastForTarget, restingAttitude, solveBallast } from '../physics.js';
-import { makeProfile, sectionXYZ } from '../geometry.js';
+import { makeProfile, sectionXYZ, stationFromLegacy, sectionCurve } from '../geometry.js';
 import { importedFor } from '../importedStore.js';
 
 let editors = [];
 let rightEl = null;
 let estimateTimer = null;
 let sectionCanvas = null;
+let stIdx = 0;
+let secEditor = null;
+let ptTables = [];
 
 const mm = (v) => fmtLen(v, 1);
 
@@ -236,9 +242,11 @@ export function render(app) {
   const leftEl = h('div', { class: 'panel-inner' },
     section(T('Base de départ', 'Starting point'), [importBtn, importHint, presets]),
     section(T('Corps', 'Body'), body),
-    section(T('Section : dos, ventre, forme en V', 'Section: back, belly, V shape'), sec),
-    section(T('Profil (vue de côté)', 'Profile (side view)'), [editors[0].canvas, h('p', { class: 'hint' }, T('Glissez les points · double-clic : ajouter · clic droit : supprimer', 'Drag points · double-click: add · right-click: remove'))]),
-    section(T('Vue de dessus', 'Top view'), [editors[1].canvas]),
+    section(T('Profil (vue de côté)', 'Profile (side view)'), [editors[0].canvas, h('p', { class: 'hint' }, T('Glissez les points · double-clic : ajouter · clic droit : supprimer', 'Drag points · double-click: add · right-click: remove')),
+      h('div', { class: 'btn-row' }, button(T('Atelier de forme (précis)', 'Shape workshop (precise)'), () => openWorkshop(app, 'side'), { cls: 'small', ic: 'ruler' }), button(T('Densifier ×2', 'Densify ×2'), () => densify(['top', 'bottom']), { cls: 'small' }))]),
+    section(T('Vue de dessus', 'Top view'), [editors[1].canvas,
+      h('div', { class: 'btn-row' }, button(T('Atelier de forme (précis)', 'Shape workshop (precise)'), () => openWorkshop(app, 'plan'), { cls: 'small', ic: 'ruler' }), button(T('Densifier ×2', 'Densify ×2'), () => densify(['plan']), { cls: 'small' }))]),
+    stationsSection(app, sec),
     section(T('Bavette', 'Lip'), [toggle({ label: T('Bavette', 'Lip'), value: d.lip.enabled, onChange: (v) => { set('lip.enabled', v); app.rerender(); } }), ...lip]),
     section(T('Attache, hameçons & anneaux', 'Tie, hooks & rings'), hooks),
     section(T('Options (jupe, tube, palette)', 'Options (skirt, tube, paddle)'), options, { open: d.type === 'skirt' || d.type === 'soft' }),
@@ -375,7 +383,9 @@ function runEstimate(app) {
 
 export function onDesign(app) {
   editors.forEach((e) => e.draw());
+  secEditor?.draw();
   drawSection();
+  ptTables.forEach((f) => f());
 }
 
 export function onStats(app) {
@@ -389,6 +399,150 @@ export function onStats(app) {
 export function destroy() {
   editors.forEach((e) => e.destroy());
   editors = [];
+  secEditor?.destroy();
+  secEditor = null;
+  ptTables = [];
   rightEl = null;
   sectionCanvas = null;
+}
+
+/* ------------------------- Sections le long du leurre (loft) ------------------------- */
+function stationsSection(app, legacySliders) {
+  const d = state.design;
+  const sc = d.body.sections || { enabled: false, stations: [] };
+  const enabled = sc.enabled && sc.stations?.length;
+  const toggleEl = toggle({
+    label: T('Sections personnalisées (loft)', 'Custom sections (loft)'),
+    hint: T('Une forme de section différente à chaque station, raccordée en douceur', 'A different section at each station, smoothly blended'),
+    value: !!enabled,
+    onChange: (v) => {
+      updateDesign((x) => {
+        if (v) {
+          const prev = x.body.sections?.stations?.length ? x.body.sections.stations : [0.1, 0.3, 0.55, 0.8].map((u) => stationFromLegacy(x, u));
+          x.body.sections = { enabled: true, stations: prev };
+        } else x.body.sections = { ...(x.body.sections || {}), enabled: false };
+      });
+      stIdx = 0;
+      app.rerender();
+    },
+  });
+  if (!enabled) return section(T('Section : dos, ventre, forme en V', 'Section: back, belly, V shape'), [toggleEl, ...legacySliders]);
+  const st = sc.stations;
+  stIdx = Math.min(stIdx, st.length - 1);
+  const L = d.body.length;
+  const order = st.map((x, i) => [x.u, i]).sort((a, b) => a[0] - b[0]);
+  const chips = h('div', { class: 'station-chips' }, order.map(([u, i]) => h('button', { type: 'button', class: 'chip' + (i === stIdx ? ' on' : ''), onclick: () => { stIdx = i; app.rerender(); } }, `S${order.findIndex((o) => o[1] === i) + 1} · ${(u * L).toFixed(0)} mm`)));
+  secEditor?.destroy();
+  secEditor = new SectionEditor(() => stIdx);
+  const cur = st[stIdx];
+  const table = h('div', { class: 'pt-table' });
+  const fillTable = () => {
+    const s2 = state.design.body.sections?.stations?.[stIdx];
+    if (!s2) return;
+    const P = makeProfile(state.design);
+    const top = P.top(s2.u), bot = P.bot(s2.u), hw = P.hw(s2.u);
+    const zm = sectionCurve(s2.pts).zm;
+    if (table._n === s2.pts.length && table.contains(document.activeElement)) return;
+    table._n = s2.pts.length;
+    table.innerHTML = '';
+    table.append(h('div', { class: 'pt-row head' }, h('span', {}, '#'), h('span', {}, T('z (mm)', 'z (mm)')), h('span', {}, T('y (mm)', 'y (mm)')), h('span', {})));
+    s2.pts.forEach(([z, y], i) => {
+      const zIn = h('input', { type: 'number', step: 0.1, value: ((z / zm) * hw).toFixed(2) });
+      const yIn = h('input', { type: 'number', step: 0.1, value: (y >= 0 ? y * top : y * bot).toFixed(2) });
+      const apply = () => {
+        const zz = Math.max(0, Number(zIn.value)) / Math.max(1e-6, hw) * zm;
+        const yy = Number(yIn.value);
+        updateDesign((x) => { x.body.sections.stations[stIdx].pts[i] = [Math.round(zz * 1000) / 1000, Math.round(Math.max(-1, Math.min(1, yy >= 0 ? yy / top : yy / bot)) * 1000) / 1000]; }, { source: 'editor' });
+      };
+      zIn.addEventListener('change', apply);
+      yIn.addEventListener('change', apply);
+      table.append(h('div', { class: 'pt-row' }, h('span', {}, String(i + 1)), zIn, yIn,
+        button('', () => { if (s2.pts.length > 2) updateDesign((x) => { x.body.sections.stations[stIdx].pts.splice(i, 1); }); fillTable(); }, { cls: 'small icon-only', ic: 'trash' })));
+    });
+  };
+  ptTables.push(fillTable);
+  fillTable();
+  return section(T('Sections le long du leurre', 'Sections along the lure'), [
+    toggleEl,
+    chips,
+    slider({ label: T('Position de la station', 'Station position'), min: 0, max: 1, step: 0.002, value: cur.u, fmt: (v) => fmtLen(v * L, 1), onInput: (v) => updateDesign((x) => { x.body.sections.stations[stIdx].u = v; }, { source: 'editor' }), onChange: () => app.rerender() }),
+    secEditor.canvas,
+    h('p', { class: 'hint' }, T('Glissez les points (flanc droit, l’autre est symétrique) · double-clic : ajouter · clic droit : supprimer. Les autres stations sont en pointillés.', 'Drag points (right side, mirrored) · double-click: add · right-click: remove. Other stations are dashed.')),
+    table,
+    h('div', { class: 'btn-row' },
+      button(T('Ajouter une station', 'Add station'), () => {
+        const sorted = [...st].sort((a, b) => a.u - b.u);
+        let gap = 0, at = 0.5;
+        for (let i = 0; i < sorted.length - 1; i++) { const g = sorted[i + 1].u - sorted[i].u; if (g > gap) { gap = g; at = (sorted[i].u + sorted[i + 1].u) / 2; } }
+        if (sorted[0].u > gap) at = sorted[0].u / 2;
+        updateDesign((x) => { x.body.sections.stations.push({ u: Math.round(at * 1000) / 1000, pts: structuredClone(cur.pts) }); });
+        stIdx = state.design.body.sections.stations.length - 1;
+        app.rerender();
+      }, { cls: 'small', ic: 'plus' }),
+      button(T('Supprimer', 'Delete'), () => { if (st.length > 1) { updateDesign((x) => { x.body.sections.stations.splice(stIdx, 1); }); stIdx = 0; app.rerender(); } }, { cls: 'small danger', ic: 'trash' })),
+    h('div', { class: 'btn-row' },
+      button(T('Copier vers toutes', 'Copy to all'), () => { updateDesign((x) => { const pts = x.body.sections.stations[stIdx].pts; x.body.sections.stations.forEach((y) => { y.pts = structuredClone(pts); }); }); app.rerender(); }, { cls: 'small' }),
+      button(T('+ point', '+ point'), () => { updateDesign((x) => { const pts = x.body.sections.stations[stIdx].pts; let bi = 0, bd = -1; const c = [[0, 1], ...pts, [0, -1]]; for (let i = 0; i < c.length - 1; i++) { const dd = Math.hypot(c[i + 1][0] - c[i][0], c[i + 1][1] - c[i][1]); if (dd > bd) { bd = dd; bi = i; } } pts.splice(bi, 0, [(c[bi][0] + c[bi + 1][0]) / 2, (c[bi][1] + c[bi + 1][1]) / 2]); }); app.rerender(); }, { cls: 'small' })),
+  ], { open: true });
+}
+
+// Double la densité de points des courbes (sans changer la forme)
+function densify(keys) {
+  updateDesign((x) => {
+    for (const k of keys) {
+      const arr = x.body[k];
+      const f = makeMonotone(arr);
+      const out = [];
+      for (let i = 0; i < arr.length; i++) {
+        out.push(arr[i]);
+        if (i < arr.length - 1) { const u = (arr[i][0] + arr[i + 1][0]) / 2; out.push([Math.round(u * 1000) / 1000, Math.round(f(u) * 1000) / 1000]); }
+      }
+      x.body[k] = out;
+    }
+  });
+}
+
+/* ------------------------- Atelier de forme : grand éditeur + tableau de cotes ------------------------- */
+function openWorkshop(app, mode) {
+  const ed = new CurveEditor(mode, { tall: true, onSelect: () => fill() });
+  const table = h('div', { class: 'pt-table wide' });
+  const keys = mode === 'side' ? [['top', T('Dos', 'Back'), 1], ['bottom', T('Ventre', 'Belly'), -1]] : [['plan', T('Demi-largeur', 'Half-width'), 1]];
+  const fill = () => {
+    if (table.contains(document.activeElement)) return;
+    const d = state.design;
+    const L = d.body.length;
+    table.innerHTML = '';
+    table.append(h('div', { class: 'pt-row head' }, h('span', {}, T('Courbe', 'Curve')), h('span', {}, T('x depuis le nez (mm)', 'x from nose (mm)')), h('span', {}, mode === 'side' ? T('hauteur / axe (mm)', 'height / axis (mm)') : T('demi-largeur (mm)', 'half-width (mm)')), h('span', {})));
+    for (const [k, label] of keys) {
+      const kRef = mode === 'side' ? d.body.height : d.body.width / 2;
+      d.body[k].forEach(([u, v], i) => {
+        const xIn = h('input', { type: 'number', step: 0.1, value: (u * L).toFixed(2), disabled: i === 0 || i === d.body[k].length - 1 });
+        const vIn = h('input', { type: 'number', step: 0.1, value: (v * kRef).toFixed(2) });
+        const apply = () => {
+          updateDesign((x) => {
+            const arr = x.body[k];
+            const nu = Math.max(0, Math.min(1, Number(xIn.value) / x.body.length));
+            arr[i] = [i === 0 ? 0 : i === arr.length - 1 ? 1 : Math.round(nu * 10000) / 10000, Math.round((Math.max(0.005, Number(vIn.value)) / kRef) * 10000) / 10000];
+            arr.sort((a, b) => a[0] - b[0]);
+          });
+          fill();
+        };
+        xIn.addEventListener('change', apply);
+        vIn.addEventListener('change', apply);
+        const isSel = ed.selected && ed.selected.key === k && ed.selected.i === i;
+        table.append(h('div', { class: 'pt-row' + (isSel ? ' sel' : '') }, h('span', {}, `${label} ${i + 1}`), xIn, vIn,
+          button('', () => { updateDesign((x) => { if (x.body[k].length > 3 && i > 0 && i < x.body[k].length - 1) x.body[k].splice(i, 1); }); fill(); }, { cls: 'small icon-only', ic: 'trash', title: T('Supprimer', 'Delete') })));
+      });
+    }
+  };
+  const off = on('design', () => { ed.draw(); fill(); });
+  const m = modal(mode === 'side' ? T('Atelier de forme — profil (vue de côté)', 'Shape workshop — side profile') : T('Atelier de forme — vue de dessus', 'Shape workshop — top view'), h('div', { class: 'workshop' },
+    ed.canvas,
+    h('p', { class: 'hint' }, T('Glissez les points ou tapez les cotes exactes en mm · double-clic sur la vue : ajouter · clic droit : supprimer · grille 5 mm.', 'Drag points or type exact dimensions in mm · double-click: add · right-click: remove · 5 mm grid.')),
+    h('div', { class: 'btn-row' },
+      button(T('Densifier ×2', 'Densify ×2'), () => densify(keys.map((k) => k[0])), { cls: 'small' }),
+      button(T('Annuler', 'Undo'), () => app.undo(), { cls: 'small', ic: 'undo' })),
+    table), { wide: true, onClose: () => { off(); ed.destroy(); app.rerender(); } });
+  void m;
+  requestAnimationFrame(() => { ed.draw(); fill(); });
 }

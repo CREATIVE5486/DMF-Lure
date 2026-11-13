@@ -1,5 +1,5 @@
 // Éditeurs 2D interactifs : profil (vue de côté) et vue de dessus, points de contrôle déplaçables.
-import { makeProfile } from './geometry.js';
+import { makeProfile, sectionCurve, SECTION_K } from './geometry.js';
 import { makeMonotone } from './curves.js';
 import { state, updateDesign } from './store.js';
 import { T } from './i18n.js';
@@ -8,10 +8,11 @@ const COL = { grid: 'rgba(120,180,190,0.10)', axis: 'rgba(120,180,190,0.35)', fi
 
 export class CurveEditor {
   // mode 'side' : courbes top (y>0) et bottom (y<0) ; mode 'plan' : demi-largeur miroir
-  constructor(mode) {
+  constructor(mode, opts = {}) {
     this.mode = mode;
+    this.onSelect = opts.onSelect || null;
     this.canvas = document.createElement('canvas');
-    this.canvas.className = 'curve-editor';
+    this.canvas.className = 'curve-editor' + (opts.tall ? ' tall' : '');
     this.canvas.setAttribute('role', 'img');
     this.canvas.setAttribute('aria-label', mode === 'side' ? T('Profil latéral éditable', 'Editable side profile') : T('Vue de dessus éditable', 'Editable top view'));
     this.ctx = this.canvas.getContext('2d');
@@ -67,7 +68,7 @@ export class CurveEditor {
       const [x, y] = pos(e);
       const p = find(x, y);
       if (e.button === 2 || e.altKey) { if (p) this.remove(p); e.preventDefault(); return; }
-      if (p) { this.drag = p; c.setPointerCapture(e.pointerId); e.preventDefault(); }
+      if (p) { this.drag = p; this.selected = { key: p.curve.key, i: p.i }; this.onSelect?.(this.selected); c.setPointerCapture(e.pointerId); e.preventDefault(); }
     });
     c.addEventListener('pointermove', (e) => {
       const [x, y] = pos(e);
@@ -197,3 +198,151 @@ export class CurveEditor {
 }
 
 const round3 = (v) => Math.round(v * 1000) / 1000;
+
+/* ===================== Éditeur de section (station) ===================== */
+
+export class SectionEditor {
+  constructor(getIndex, onSelect = null) {
+    this.getIndex = getIndex;
+    this.onSelect = onSelect;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'section-editor';
+    this.ctx = this.canvas.getContext('2d');
+    this.drag = null;
+    this.sel = -1;
+    this.bind();
+    this.ro = new ResizeObserver(() => this.draw());
+    this.ro.observe(this.canvas);
+  }
+
+  station() {
+    const st = state.design.body.sections?.stations || [];
+    return st[this.getIndex()] || null;
+  }
+
+  frame() {
+    const c = this.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    const w = c.clientWidth || 300, hh = c.clientHeight || 260;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(hh * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(hh * dpr); }
+    const st = this.station();
+    const P = makeProfile(state.design);
+    const u = st ? st.u : 0.5;
+    const top = P.top(u), bot = P.bot(u), hw = P.hw(u);
+    const s = Math.min((w - 40) / (2 * hw * 1.3), (hh - 30) / ((top + bot) * 1.1));
+    return { w, hh, dpr, s, cx: w / 2, cy: 15 + top * s * 1.05, top, bot, hw, u };
+  }
+
+  // point normalisé → écran (en tenant compte de la normalisation de largeur)
+  toScreen(F, zn, yn, zm) { return [F.cx + (zn / zm) * F.hw * F.s, F.cy - (yn >= 0 ? yn * F.top : yn * F.bot) * F.s]; }
+  fromScreen(F, x, y, zm) {
+    const z = ((x - F.cx) / (F.hw * F.s)) * zm;
+    const yy = (F.cy - y) / F.s;
+    return [Math.max(0, z), Math.max(-1, Math.min(1, yy >= 0 ? yy / F.top : yy / F.bot))];
+  }
+
+  bind() {
+    const c = this.canvas;
+    const pos = (e) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    const find = (x, y) => {
+      const st = this.station();
+      if (!st) return -1;
+      const F = this.frame();
+      const zm = sectionCurve(st.pts).zm;
+      let best = -1, bd = 14;
+      st.pts.forEach(([z, yv], i) => { const [sx, sy] = this.toScreen(F, z, yv, zm); const d = Math.hypot(sx - x, sy - y); if (d < bd) { bd = d; best = i; } });
+      return best;
+    };
+    c.addEventListener('pointerdown', (e) => {
+      const [x, y] = pos(e);
+      const i = find(x, y);
+      if (e.button === 2) {
+        if (i >= 0 && this.station().pts.length > 2) updateDesign((d) => { d.body.sections.stations[this.getIndex()].pts.splice(i, 1); }, { source: 'editor' });
+        e.preventDefault();
+        return;
+      }
+      if (i >= 0) { this.sel = i; this.drag = { i, zm: sectionCurve(this.station().pts).zm }; c.setPointerCapture(e.pointerId); this.onSelect?.(i); this.draw(); }
+    });
+    c.addEventListener('pointermove', (e) => {
+      const [x, y] = pos(e);
+      if (!this.drag) { c.style.cursor = find(x, y) >= 0 ? 'grab' : 'crosshair'; return; }
+      const F = this.frame();
+      const [z, yn] = this.fromScreen(F, x, y, this.drag.zm);
+      updateDesign((d) => { d.body.sections.stations[this.getIndex()].pts[this.drag.i] = [Math.round(z * 1000) / 1000, Math.round(yn * 1000) / 1000]; }, { source: 'editor' });
+    });
+    const end = () => { this.drag = null; };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener('contextmenu', (e) => e.preventDefault());
+    c.addEventListener('dblclick', (e) => {
+      const st = this.station();
+      if (!st) return;
+      const [x, y] = pos(e);
+      const F = this.frame();
+      const zm = sectionCurve(st.pts).zm;
+      const [z, yn] = this.fromScreen(F, Math.max(F.cx, x), y, zm);
+      // insertion dans l'ordre dos → ventre (y décroissant)
+      const pts = st.pts;
+      let at = pts.findIndex((p) => p[1] < yn);
+      if (at < 0) at = pts.length;
+      updateDesign((d) => { d.body.sections.stations[this.getIndex()].pts.splice(at, 0, [Math.round(z * 1000) / 1000, Math.round(yn * 1000) / 1000]); }, { source: 'editor' });
+    });
+  }
+
+  draw() {
+    const F = this.frame();
+    const g = this.ctx;
+    g.setTransform(F.dpr, 0, 0, F.dpr, 0, 0);
+    g.clearRect(0, 0, F.w, F.hh);
+    g.strokeStyle = 'rgba(120,180,190,0.10)';
+    const step = 2 * F.s;
+    for (let x = F.cx % step; x < F.w; x += step) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, F.hh); g.stroke(); }
+    for (let y = F.cy % step; y < F.hh; y += step) { g.beginPath(); g.moveTo(0, y); g.lineTo(F.w, y); g.stroke(); }
+    g.strokeStyle = 'rgba(120,180,190,0.4)';
+    g.beginPath(); g.moveTo(F.cx, 0); g.lineTo(F.cx, F.hh); g.moveTo(0, F.cy); g.lineTo(F.w, F.cy); g.stroke();
+    const all = state.design.body.sections?.stations || [];
+    const idx = this.getIndex();
+    const drawCurve = (st, color, width, dash = []) => {
+      const { Z, Y } = sectionCurve(st.pts);
+      g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash);
+      for (const side of [1, -1]) {
+        g.beginPath();
+        for (let k = 0; k < SECTION_K; k++) {
+          const x = F.cx + side * Z[k] * F.hw * F.s, y = F.cy - (Y[k] >= 0 ? Y[k] * F.top : Y[k] * F.bot) * F.s;
+          if (k) g.lineTo(x, y); else g.moveTo(x, y);
+        }
+        g.stroke();
+      }
+      g.setLineDash([]);
+    };
+    all.forEach((st, i) => { if (i !== idx) drawCurve(st, 'rgba(200,230,235,0.22)', 1, [4, 4]); });
+    const st = all[idx];
+    if (!st) return;
+    // remplissage de la section courante
+    const { Z, Y, zm } = sectionCurve(st.pts);
+    g.beginPath();
+    for (let k = 0; k < SECTION_K; k++) { const x = F.cx + Z[k] * F.hw * F.s, y = F.cy - (Y[k] >= 0 ? Y[k] * F.top : Y[k] * F.bot) * F.s; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+    for (let k = SECTION_K - 1; k >= 0; k--) { const x = F.cx - Z[k] * F.hw * F.s, y = F.cy - (Y[k] >= 0 ? Y[k] * F.top : Y[k] * F.bot) * F.s; g.lineTo(x, y); }
+    g.fillStyle = 'rgba(47,211,181,0.12)';
+    g.fill();
+    drawCurve(st, '#2fd3b5', 2);
+    // polygone de contrôle + points
+    g.strokeStyle = 'rgba(255,209,102,0.35)'; g.lineWidth = 1;
+    g.beginPath();
+    const ctrl = [[0, 1], ...st.pts, [0, -1]];
+    ctrl.forEach(([z, y], i) => { const [sx, sy] = this.toScreen(F, z, y, zm); if (i) g.lineTo(sx, sy); else g.moveTo(sx, sy); });
+    g.stroke();
+    st.pts.forEach(([z, y], i) => {
+      const [sx, sy] = this.toScreen(F, z, y, zm);
+      g.beginPath(); g.arc(sx, sy, i === this.sel ? 6.5 : 5, 0, Math.PI * 2);
+      g.fillStyle = i === this.sel ? '#ffd166' : '#e9fffa'; g.fill();
+      g.strokeStyle = '#0b1a20'; g.lineWidth = 2; g.stroke();
+    });
+    g.fillStyle = 'rgba(200,230,235,0.75)';
+    g.font = '11px system-ui, sans-serif';
+    g.fillText(`${(st.u * state.design.body.length).toFixed(1)} mm`, 8, F.hh - 8);
+    g.fillText(`${(2 * F.hw).toFixed(1)} × ${(F.top + F.bot).toFixed(1)} mm`, F.w - 110, F.hh - 8);
+  }
+
+  destroy() { this.ro.disconnect(); }
+}

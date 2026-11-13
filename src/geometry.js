@@ -21,6 +21,7 @@ export function makeProfile(design) {
   };
   return {
     L, H, W, nr, tr,
+    st: b.sections?.enabled && b.sections.stations?.length ? buildStations(b.sections.stations) : null,
     n: clamp(b.squareness, 1.6, 6),
     bw: clamp(b.backWidth ?? 1, 0.2, 1.8),
     vw: clamp(b.bellyWidth ?? 1, 0.1, 1.8),
@@ -38,9 +39,86 @@ export function ringUs(n, u0 = 0, u1 = 1) {
   return us;
 }
 
+/* ---------- Sections personnalisées (loft entre stations) ----------
+   Une station = demi-section (flanc +z) définie par des points de contrôle (z, y) normalisés :
+   z ∈ [0, 1.6] (rapporté à la demi-largeur du plan), y ∈ [-1, 1] (−1 ventre, +1 dos).
+   Extrémités fixes : (0, 1) au dos et (0, −1) au ventre. Courbe Catmull-Rom rééchantillonnée en abscisse curviligne. */
+export const SECTION_K = 97;
+
+export function sectionCurve(pts) {
+  const P = [[0, 1], ...pts.map((p) => [Math.max(0, p[0]), clamp(p[1], -1, 1)]), [0, -1]];
+  const ext = [[-P[1][0], P[1][1]], ...P, [-P[P.length - 2][0], P[P.length - 2][1]]];
+  const dense = [];
+  for (let i = 1; i < ext.length - 2; i++) {
+    const p0 = ext[i - 1], p1 = ext[i], p2 = ext[i + 1], p3 = ext[i + 2];
+    for (let k = 0; k < 24; k++) {
+      const t = k / 24, t2 = t * t, t3 = t2 * t;
+      const f = (a, b2, c, d) => 0.5 * (2 * b2 + (-a + c) * t + (2 * a - 5 * b2 + 4 * c - d) * t2 + (-a + 3 * b2 - 3 * c + d) * t3);
+      dense.push([Math.max(0, f(p0[0], p1[0], p2[0], p3[0])), clamp(f(p0[1], p1[1], p2[1], p3[1]), -1, 1)]);
+    }
+  }
+  dense.push([0, -1]);
+  const len = [0];
+  for (let i = 1; i < dense.length; i++) len.push(len[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
+  const total = len[len.length - 1] || 1;
+  const Z = new Float32Array(SECTION_K), Y = new Float32Array(SECTION_K);
+  let j = 0;
+  for (let k = 0; k < SECTION_K; k++) {
+    const target = (k / (SECTION_K - 1)) * total;
+    while (j < len.length - 2 && len[j + 1] < target) j++;
+    const t = (target - len[j]) / Math.max(1e-9, len[j + 1] - len[j]);
+    Z[k] = dense[j][0] + (dense[j + 1][0] - dense[j][0]) * t;
+    Y[k] = dense[j][1] + (dense[j + 1][1] - dense[j][1]) * t;
+  }
+  let zm = 0;
+  for (let k = 0; k < SECTION_K; k++) zm = Math.max(zm, Z[k]);
+  if (zm > 0) for (let k = 0; k < SECTION_K; k++) Z[k] /= zm; // la vue de dessus fixe la largeur réelle
+  Z[0] = 0; Y[0] = 1; Z[SECTION_K - 1] = 0; Y[SECTION_K - 1] = -1;
+  return { Z, Y, zm: zm || 1 };
+}
+
+function buildStations(list) {
+  return [...list].sort((a, b) => a.u - b.u).map((s) => ({ u: clamp(s.u, 0, 1), ...sectionCurve(s.pts || []) }));
+}
+
+function stationAt(st, u, s) {
+  const f = s * (SECTION_K - 1);
+  const k = Math.min(SECTION_K - 2, Math.floor(f)), t = f - k;
+  const ev = (S) => [S.Z[k] + (S.Z[k + 1] - S.Z[k]) * t, S.Y[k] + (S.Y[k + 1] - S.Y[k]) * t];
+  if (u <= st[0].u || st.length === 1) return ev(st[0]);
+  if (u >= st[st.length - 1].u) return ev(st[st.length - 1]);
+  let i = 0;
+  while (i < st.length - 2 && st[i + 1].u < u) i++;
+  let w = (u - st[i].u) / Math.max(1e-6, st[i + 1].u - st[i].u);
+  w = w * w * (3 - 2 * w);
+  const a = ev(st[i]), b2 = ev(st[i + 1]);
+  return [a[0] + (b2[0] - a[0]) * w, a[1] + (b2[1] - a[1]) * w];
+}
+
+// Section actuelle (super-ellipse) convertie en points de contrôle d'une station
+export function stationFromLegacy(design, u, n = 7) {
+  const P0 = makeProfile({ ...design, body: { ...design.body, sections: { enabled: false, stations: [] } } });
+  const top = P0.top(u), bot = P0.bot(u), hw = P0.hw(u);
+  const pts = [];
+  let zm = 0;
+  for (let k = 1; k <= n; k++) {
+    const p = sectionXYZ(P0, u, (k / (n + 1)) * Math.PI, top, bot, hw);
+    pts.push([p[2] / Math.max(1e-6, hw), p[1] >= 0 ? p[1] / Math.max(1e-6, top) : p[1] / Math.max(1e-6, bot)]);
+    zm = Math.max(zm, p[2] / Math.max(1e-6, hw));
+  }
+  return { u: Math.round(u * 1000) / 1000, pts: pts.map(([z, y]) => [Math.round(z * 1000) / 1000, Math.round(y * 1000) / 1000]) };
+}
+
 // Point de section. θ = 0 dos, π/2 flanc +z, π ventre.
 // La largeur varie avec la hauteur : backWidth (dos), bellyWidth (ventre), keel (ventre en V).
 export function sectionXYZ(P, u, theta, top, bot, hw) {
+  if (P.st) {
+    let th = theta % (Math.PI * 2);
+    if (th < 0) th += Math.PI * 2;
+    const side = th <= Math.PI ? 1 : -1;
+    const [zn, yn] = stationAt(P.st, u, side > 0 ? th / Math.PI : (Math.PI * 2 - th) / Math.PI);
+    return [u * P.L, yn >= 0 ? top * yn : bot * yn, side * hw * zn];
+  }
   const c = Math.cos(theta), s = Math.sin(theta), e = 2 / P.n;
   const tc = c >= 0 ? Math.pow(c, e) : -Math.pow(-c, e); // hauteur normalisée −1..1
   const y = tc >= 0 ? top * tc : bot * tc;
@@ -492,8 +570,105 @@ export function hangerPoints(design) {
   return out;
 }
 
+/* ============================== Logements intérieurs ============================== */
+// Volume d'un logement (repère leurre, mm) : capsule orientée selon un axe, boîte arrondie ou sphère
+export function pocketSoup(p, extra = 0) {
+  const c = [p.x, p.y, p.z || 0];
+  if (p.shape === 'sphere') return sphereSoup(c, Math.max(0.3, p.dia / 2 + extra));
+  if (p.shape === 'box') {
+    const hl = Math.max(0.5, p.length / 2 + extra), hh = Math.max(0.5, p.height / 2 + extra), hwz = Math.max(0.5, p.width / 2 + extra);
+    // boîte aux angles arrondis : super-ellipsoïde (exposant 6)
+    const rings = [];
+    const n = 22, m = 32, e = 2 / 6;
+    for (let i = 0; i < n; i++) {
+      const v = -Math.PI / 2 + (Math.PI * i) / (n - 1);
+      const cv = Math.cos(v), sv = Math.sin(v);
+      const pts = [];
+      for (let j = 0; j < m; j++) {
+        const w = (j / m) * Math.PI * 2;
+        const cw = Math.cos(w), sw = Math.sin(w);
+        const f = (a, k) => Math.sign(a) * Math.pow(Math.abs(a), k);
+        pts.push([c[0] + hl * f(sv, e), c[1] + hh * f(cv, e) * f(cw, e), c[2] + hwz * f(cv, e) * f(sw, e)]);
+      }
+      rings.push(pts);
+    }
+    return loftRings(rings);
+  }
+  const r = Math.max(0.3, p.dia / 2 + extra);
+  const half = Math.max(0, p.length / 2 - p.dia / 2);
+  const d = p.axis === 'y' ? [0, 1, 0] : p.axis === 'z' ? [0, 0, 1] : [1, 0, 0];
+  if (half < 0.05) return sphereSoup(c, r);
+  // capsule : demi-sphères aux deux bouts
+  const u = p.axis === 'x' ? [0, 1, 0] : [1, 0, 0];
+  const w = [d[1] * u[2] - d[2] * u[1], d[2] * u[0] - d[0] * u[2], d[0] * u[1] - d[1] * u[0]];
+  const rings = [];
+  const steps = 10, m = 28;
+  const ring = (t, rr) => {
+    const pts = [];
+    for (let j = 0; j < m; j++) {
+      const ph = (j / m) * Math.PI * 2, cp = Math.cos(ph) * rr, sp = Math.sin(ph) * rr;
+      pts.push([0, 1, 2].map((k) => c[k] + d[k] * t + u[k] * cp + w[k] * sp));
+    }
+    return pts;
+  };
+  for (let i = 0; i <= steps; i++) { const a = -Math.PI / 2 + (Math.PI / 2) * (i / steps); rings.push(ring(-half + r * Math.sin(a), r * Math.cos(a))); }
+  for (let i = 0; i <= steps; i++) { const a = (Math.PI / 2) * (i / steps); rings.push(ring(half + r * Math.sin(a), r * Math.cos(a))); }
+  return loftRings(rings);
+}
+
+export function pocketVolume(p) {
+  if (p.shape === 'sphere') return (Math.PI / 6) * p.dia ** 3;
+  if (p.shape === 'box') return p.length * p.height * p.width * 0.93;
+  const r = p.dia / 2;
+  return Math.PI * r * r * Math.max(0, p.length - p.dia) + (4 / 3) * Math.PI * r ** 3;
+}
+
+// Positions des billes dans un logement (rangée le long de l'axe)
+export function pocketBalls(p) {
+  const n = Math.max(0, Math.round(p.ballCount || 0));
+  if (!n || !(p.ballDia > 0)) return [];
+  const d = p.axis === 'y' ? [0, 1, 0] : p.axis === 'z' ? [0, 0, 1] : [1, 0, 0];
+  const out = [];
+  if (p.type === 'rattle') {
+    for (let i = 0; i < n; i++) { const t = (i / Math.max(1, n - 1) - 0.5) * Math.max(0, p.length - p.ballDia); out.push([p.x + d[0] * t, p.y + d[1] * t - (p.dia - p.ballDia) / 2 * 0.8, (p.z || 0) + d[2] * t]); }
+    return out;
+  }
+  for (let i = 0; i < n; i++) {
+    const t = (i - (n - 1) / 2) * p.ballDia * 1.01;
+    out.push([p.x + d[0] * t, p.y + d[1] * t, (p.z || 0) + d[2] * t]);
+  }
+  return out;
+}
+
+// Épaisseur de paroi minimale entre un logement et la peau du leurre (estimation par le profil)
+export function pocketWall(design, p) {
+  const P = makeProfile(design);
+  const hx = p.shape === 'box' ? p.length / 2 : p.axis === 'x' ? p.length / 2 : p.dia / 2;
+  const hy = p.shape === 'box' ? p.height / 2 : p.axis === 'y' ? p.length / 2 : p.dia / 2;
+  const hz = p.shape === 'box' ? p.width / 2 : p.axis === 'z' ? p.length / 2 : p.dia / 2;
+  let wall = Infinity;
+  for (let k = -4; k <= 4; k++) {
+    const x = p.x + (k / 4) * hx * 0.95;
+    const u = x / P.L;
+    if (u <= 0 || u >= 1) return -1;
+    const top = P.top(u), bot = P.bot(u), hw = P.hw(u);
+    wall = Math.min(wall, top - (p.y + hy), (p.y - hy) + bot);
+    // largeur de section à la hauteur du logement
+    let zmax = 0;
+    for (let j = 0; j <= 48; j++) {
+      const q = sectionXYZ(P, u, (j / 48) * Math.PI, top, bot, hw);
+      if (Math.abs(q[1] - p.y) <= hy + 0.3) zmax = Math.max(zmax, q[2]);
+    }
+    wall = Math.min(wall, zmax - (Math.abs(p.z || 0) + hz));
+  }
+  wall = Math.min(wall, p.x - hx, P.L - (p.x + hx));
+  return wall;
+}
+
 // Trajet de l'armature (attache → pitons → queue) dans le plan de joint
 export function armaturePath(design) {
+  const w = design.interior?.wire;
+  if (w && !w.auto && w.points?.length >= 2) return w.points.map(([x, y]) => [x, y, 0]);
   const P = makeProfile(design);
   const tie = lineTiePoint(design).point;
   const yc = (u) => (P.top(u) - P.bot(u)) / 2;

@@ -184,7 +184,7 @@ function fillRight(app) {
   if (!mp) return;
   rightEl.innerHTML = '';
   const cls = { floating: T('Flottant', 'Floating'), suspending: T('Suspending', 'Suspending'), sinking: T('Coulant', 'Sinking') }[mp.buoyancyClass];
-  const labels = { shell: T('Corps imprimé', 'Printed body'), infill: T('Remplissage', 'Infill'), coat: T('Finition', 'Finish coat'), lip: T('Bavette', 'Lip'), paddle: T('Palette', 'Paddle'), skirt: T('Jupe vinyle', 'Vinyl skirt'), tie: T('Attache', 'Line tie'), hook: T('Hameçon + anneau', 'Hook + ring'), ballast: T('Lest', 'Ballast') };
+  const labels = { shell: T('Corps imprimé', 'Printed body'), infill: T('Remplissage', 'Infill'), coat: T('Finition', 'Finish coat'), lip: T('Bavette', 'Lip'), paddle: T('Palette', 'Paddle'), skirt: T('Jupe vinyle', 'Vinyl skirt'), tie: T('Attache', 'Line tie'), hook: T('Hameçon + anneau', 'Hook + ring'), ballast: T('Lest libre', 'Free ballast'), balls: T('Billes (logement)', 'Balls (pocket)'), rattle: T('Billes de hochet', 'Rattle balls'), pocket: T('Matière retirée (logement)', 'Material removed (pocket)') };
   rightEl.append(
     section(T('Leurre fini prévu (corrigé pour l’impression)', 'Predicted finished bait (print-corrected)'), [
       h('div', { class: 'big-row' },

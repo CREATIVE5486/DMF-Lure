@@ -1,0 +1,25 @@
+// Sections personnalisées + logements intérieurs : solides fermés, masses, pièces CSG
+import { presetDesign, newPocket, pocketBallMass } from '../src/design.js';
+import { buildSolidBody, checkManifold, soupVolume, stationFromLegacy, pocketSoup, pocketWall } from '../src/geometry.js';
+import { computeMassProps } from '../src/physics.js';
+import { printSolids } from '../src/csg.js';
+import { sketchSVG } from '../src/sketch.js';
+let fail = 0;
+const ok = (n, c, info = '') => { console.log(c ? '✓' : '✗', n, info); if (!c) fail++; };
+const d = presetDesign('deep');
+const v0 = soupVolume(buildSolidBody(d)).volume;
+d.body.sections = { enabled: true, stations: [0.1, 0.35, 0.6, 0.85].map((u) => stationFromLegacy(d, u)) };
+const v1 = soupVolume(buildSolidBody(d)).volume;
+ok('conversion en stations conserve le volume', Math.abs(v1 - v0) / v0 < 0.02, `${(v0 / 1000).toFixed(2)} → ${(v1 / 1000).toFixed(2)} cm3`);
+d.body.sections.stations[0].pts = [[0.5, 0.85], [0.95, 0.35], [1, -0.1], [0.55, -0.7], [0.15, -0.97]];
+ok('tête en V : solide fermé', checkManifold(buildSolidBody(d)).ok);
+d.interior.pockets = [newPocket('balls', d), newPocket('air', d), newPocket('well', d), newPocket('rattle', d)];
+for (const p of d.interior.pockets) ok(`logement ${p.type} fermé`, checkManifold(pocketSoup(p)).ok, `paroi ${pocketWall(d, p).toFixed(1)} mm, billes ${pocketBallMass(p).toFixed(2)} g`);
+const m0 = computeMassProps(presetDesign('deep')).mass, m1 = computeMassProps(d).mass;
+const balls = d.interior.pockets.reduce((a, p) => a + pocketBallMass(p), 0);
+ok('les billes s’ajoutent à la masse', m1 > m0 + balls * 0.8, `${m0.toFixed(1)} → ${m1.toFixed(1)} g (+${balls.toFixed(1)} g de billes)`);
+d.interior.wire = { enabled: true, dia: 1.2, auto: false, points: [[-2, 2], [40, -4], [100, -3], [162, 1]] };
+const parts = printSolids(d, { mode: 'halves' });
+ok('demi-coques avec logements et armature libre', parts.length === 2 && parts.every((p) => soupVolume(p.soup).volume > 1000), parts.map((p) => `${p.key} ${(soupVolume(p.soup).volume / 1000).toFixed(1)} cm3`).join(' '));
+ok('schéma SVG', sketchSVG(d).includes('<svg') && sketchSVG(d).length > 5000);
+process.exit(fail ? 1 : 0);

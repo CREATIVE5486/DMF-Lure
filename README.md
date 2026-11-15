@@ -17,6 +17,18 @@ Il fonctionne entièrement dans le navigateur (PC, Mac, tablette, téléphone), 
 
 Autres fonctions : bibliothèque « Mes leurres » (enregistrement local automatique), annuler/rétablir, import/export de projets pour partager avec des amis, unités mm·g ou in·oz, français / anglais, installable comme une application (PWA).
 
+### Simulation de nage : dynamique 6 degrés de liberté
+
+Le leurre est simulé comme un corps rigide qui avance, plonge, **se décale à gauche et à droite**, et tourne en lacet, tangage et roulis, avec sa vraie inertie (coque, billes, hameçons, jupe…). Les forces sont appliquées à leur point réel :
+
+- **bavette** : force normale selon son incidence réelle (plongée + traînée) et **tourbillons alternés** qui entretiennent la nage, avec une petite turbulence qui produit le « hunting » ;
+- **corps** : traînée transversale tranche par tranche (amortit et résiste à l'écart latéral), masse d'eau entraînée ;
+- **fil** : tension élastique à l'**attache** (sa position change vraiment la nage) et traînée du fil immergé ;
+- **poids** au centre de gravité, **poussée** au centre de la partie immergée (ligne d'eau et assiette réelles) ;
+- **hameçons, jupe, palette** : traînée d'ancre flottante qui stabilise.
+
+Le wobble (fréquence, amplitude), le **balayage de la queue en mm**, le roulis et le décrochage sont **mesurés** sur la nage simulée, pas imposés. Exemple (grosse bavette, 5 nœuds) : 6,7 Hz, ±17°, queue ±41 mm ; attache avancée → moins profond et plus serré, attache au nez → plus profond et plus large, plus de lest → moins de roulis.
+
 ### Conception précise
 
 - **Sections le long du leurre (loft)** : plusieurs stations, chacune avec sa propre forme de section (points déplaçables + cotes en mm), raccordées en douceur — tête en V, ventre plat, dos arrondi… au même endroit que vous le feriez dans un logiciel de CAO.

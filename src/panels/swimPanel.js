@@ -144,13 +144,13 @@ function runBench(app) {
     benchEl.append(h('div', { class: 'bench-row ' + (vd.ok ? 'ok' : 'bad') },
       h('b', {}, label),
       h('span', {}, fmtDepth(M.maxDepth)),
-      h('span', {}, extra || `${(M.freqSum / (M.freqN || 1)).toFixed(1)} Hz`),
+      h('span', {}, extra || `${(M.freqSum / (M.freqN || 1)).toFixed(1)} Hz · ±${sim.averages().tailAmp.toFixed(0)} mm`),
       h('span', { class: 'mark' }, vd.ok ? '✓' : (vd.reason === 'blowout' ? T('décroche', 'blow-out') : '✗'))));
   };
   for (const k of [3, 5, 7, 9]) {
     const sim = new SwimPhysics(hyd, { ...sw.params, scenario: 'troll', speed: k * KNOT });
     let n = 0;
-    while (sim.t < 30 && n < 20000) { sim.step(1 / 300); n++; }
+    while (sim.t < 18 && n < 12000) { sim.step(1 / 300); n++; }
     row(`${T('Traîne', 'Troll')} ${k} ${T('nds', 'kn')}`, sim);
   }
   for (const k of ['steady', 'stopgo', 'twitch']) {
@@ -206,11 +206,13 @@ export function frame(app) {
     } else {
       liveEl.append(
         stat(T('Profondeur max', 'Max depth'), fmtDepth(M.maxDepth)),
-        stat(T('Wobble', 'Wobble'), `${sim.freq.toFixed(1)} Hz · ±${(sw.hydro.yawAmp).toFixed(0)}°`),
+        stat(T('Wobble (mesuré)', 'Wobble (measured)'), `${sim.freq.toFixed(1)} Hz · ±${sim.live.yawAmp.toFixed(1)}°`),
+        stat(T('Écart latéral du leurre', 'Lateral swing (body)'), `± ${sim.live.latAmp.toFixed(1)} mm`),
+        stat(T('Balayage de la queue', 'Tail sweep'), `± ${sim.live.tailAmp.toFixed(1)} mm`),
         stat(T('Roulis max', 'Max roll'), `${Math.min(180, M.maxRoll).toFixed(0)}°`),
         stat(T('Traction max', 'Max line pull'), fmtForce(M.maxTension)),
         stat(T('Contacts au fond', 'Bottom contacts'), String(M.bottomHits)),
-        stat(T('Vitesse de décrochage', 'Blow-out speed'), sw.hydro.vCrit > 7 ? T('> 14 nœuds', '> 14 kn') : fmtKn(sw.hydro.vCrit)));
+        stat(T('Roulis actuel', 'Current roll'), `${Math.abs(sim.roll * 57.3).toFixed(0)}°`));
     }
     drawChart(sw);
   }

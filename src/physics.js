@@ -384,3 +384,42 @@ export function solveBallast(design, targetId, water = 'fresh') {
   }
   return { grams: Math.round(fallback.ballast.grams * 10) / 10, hooks: fallback.hooks };
 }
+
+// Table de flottabilité pour la dynamique 6 DDL : volume immergé et centre de poussée (repère leurre, mm)
+// pour un plan d'eau y = h + (x − xr)·t, sur une grille (h, t). Interpolée à chaque pas de calcul.
+export function buoyancyGrid(design, xr) {
+  const slices = makeSlices(design, 40);
+  const dims = bodyDims(design);
+  const NH = 30, NT = 13;
+  const h0 = dims.yBot - 3, h1 = dims.yTop + 3;
+  const t0 = Math.tan(-55 * Math.PI / 180), t1 = -t0;
+  const V = new Float32Array(NH * NT), CX = new Float32Array(NH * NT), CY = new Float32Array(NH * NT);
+  for (let i = 0; i < NH; i++) {
+    const h = h0 + ((h1 - h0) * i) / (NH - 1);
+    for (let j = 0; j < NT; j++) {
+      const t = t0 + ((t1 - t0) * j) / (NT - 1);
+      const s = submerged(slices, h, t, xr);
+      V[i * NT + j] = s.V; CX[i * NT + j] = s.cx; CY[i * NT + j] = s.cy;
+    }
+  }
+  const full = submerged(slices, 1e6, 0, xr);
+  return { NH, NT, h0, h1, t0, t1, V, CX, CY, Vfull: full.V, cxFull: full.cx, cyFull: full.cy };
+}
+
+export function sampleBuoyancy(g, h, t) {
+  if (h >= g.h1) return { V: g.Vfull, cx: g.cxFull, cy: g.cyFull };
+  if (h <= g.h0) return { V: 0, cx: g.cxFull, cy: g.cyFull };
+  const fi = ((h - g.h0) / (g.h1 - g.h0)) * (g.NH - 1);
+  const fj = Math.max(0, Math.min(g.NT - 1 - 1e-6, ((t - g.t0) / (g.t1 - g.t0)) * (g.NT - 1)));
+  const i = Math.min(g.NH - 2, Math.floor(fi)), j = Math.min(g.NT - 2, Math.floor(fj));
+  const a = fi - i, b = fj - j;
+  const k = (ii, jj) => ii * g.NT + jj;
+  const lerp = (A) => (A[k(i, j)] * (1 - a) + A[k(i + 1, j)] * a) * (1 - b) + (A[k(i, j + 1)] * (1 - a) + A[k(i + 1, j + 1)] * a) * b;
+  const V = lerp(g.V);
+  const w = (A) => { // centre pondéré par le volume (évite les centres nuls des cases vides)
+    let num = 0, den = 0;
+    for (const [ii, jj, ww] of [[i, j, (1 - a) * (1 - b)], [i + 1, j, a * (1 - b)], [i, j + 1, (1 - a) * b], [i + 1, j + 1, a * b]]) { const v = g.V[k(ii, jj)] * ww; num += A[k(ii, jj)] * v; den += v; }
+    return den > 0 ? num / den : (A === g.CX ? g.cxFull : g.cyFull);
+  };
+  return { V, cx: w(g.CX), cy: w(g.CY) };
+}

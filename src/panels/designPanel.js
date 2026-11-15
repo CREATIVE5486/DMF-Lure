@@ -369,15 +369,17 @@ function runEstimate(app) {
   const cast = new SwimPhysics(hyd, { scenario: 'steady', speed: 1, cast: 30, depth: 60, water: state.water });
   n = 0;
   while (!cast.finished && n < 30000) { cast.step(1 / 250); n++; }
-  const freq = troll.metrics.freqSum / (troll.metrics.freqN || 1);
-  const action = hyd.yawAmp > 12 ? T('large (wide)', 'wide') : hyd.yawAmp > 7 ? T('moyenne', 'medium') : T('serrée (tight)', 'tight');
+  const av = troll.averages();
+  const freq = av.freq;
+  const action = av.yawAmp > 12 ? T('large (wide)', 'wide') : av.yawAmp > 6 ? T('moyenne', 'medium') : T('serrée (tight)', 'tight');
   el.innerHTML = '';
   el.append(
     stat(T('Traîne 5 nœuds, 40 m de ligne', 'Trolling 5 kn, 40 m line'), fmtDepth(troll.metrics.maxDepth)),
     stat(T('Lancer-ramener 2 nœuds', 'Cast & retrieve 2 kn'), fmtDepth(cast.metrics.maxDepth)),
     stat(T('Fréquence de nage', 'Swim frequency'), `${freq.toFixed(1)} Hz`),
-    stat(T('Action', 'Action'), action),
-    stat(T('Décroche au-delà de', 'Blows out above'), hyd.vCrit > 7 ? T('> 14 nœuds', '> 14 kn') : `${(hyd.vCrit / KNOT).toFixed(1)} ${T('nœuds', 'kn')}`),
+    stat(T('Action', 'Action'), `${action} · ±${av.yawAmp.toFixed(0)}°`),
+    stat(T('Balayage de la queue (5 nœuds)', 'Tail sweep (5 kn)'), `± ${av.tailAmp.toFixed(0)} mm`),
+    stat(T('Tenue à 5 nœuds', 'Stability at 5 kn'), troll.metrics.blowout ? T('décroche', 'blows out') : `${T('roulis max', 'max roll')} ${troll.metrics.maxRoll.toFixed(0)}°`),
   );
 }
 

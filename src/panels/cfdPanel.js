@@ -14,7 +14,8 @@ function quickRun(design, speed, water) {
   const sim = new SwimPhysics(hyd, { scenario: 'troll', speed, lineOut: 40, depth: 80, water });
   let n = 0;
   while (sim.t < 22 && n < 9000) { sim.step(1 / 250); n++; }
-  return { depth: sim.metrics.maxDepth, freq: sim.metrics.freqSum / (sim.metrics.freqN || 1), yaw: hyd.yawAmp, vCrit: hyd.vCrit, blow: sim.metrics.blowout, mass: mp.mass, net: mp.netBuoyancy, righting: mp.righting };
+  const av = sim.averages();
+  return { depth: sim.metrics.maxDepth, freq: av.freq, yaw: av.yawAmp, tail: av.tailAmp, roll: sim.metrics.maxRoll, vCrit: hyd.vCrit, blow: sim.metrics.blowout, mass: mp.mass, net: mp.netBuoyancy, righting: mp.righting };
 }
 
 function variants(d) {
@@ -38,11 +39,13 @@ function sentence(base, v) {
   const dd = v.depth - base.depth;
   if (Math.abs(dd) > 0.15) parts.push(dd > 0 ? T(`plonge plus profond (+${dd.toFixed(1)} m)`, `dives deeper (+${dd.toFixed(1)} m)`) : T(`nage moins profond (${dd.toFixed(1)} m)`, `runs shallower (${dd.toFixed(1)} m)`));
   const dy = v.yaw - base.yaw;
-  if (Math.abs(dy) > 0.8) parts.push(dy > 0 ? T('nage plus large', 'wider wobble') : T('nage plus serrée', 'tighter wobble'));
+  if (Math.abs(dy) > 1.5) parts.push(dy > 0 ? T('nage plus large', 'wider wobble') : T('nage plus serrée', 'tighter wobble'));
   const df = v.freq - base.freq;
   if (Math.abs(df) > 0.4) parts.push(df > 0 ? T(`vibre plus vite (+${df.toFixed(1)} Hz)`, `vibrates faster (+${df.toFixed(1)} Hz)`) : T(`vibre plus lentement (${df.toFixed(1)} Hz)`, `vibrates slower (${df.toFixed(1)} Hz)`));
-  const dv = (v.vCrit - base.vCrit) / KNOT;
-  if (Math.abs(dv) > 0.3 && base.vCrit < 7) parts.push(dv > 0 ? T(`tient ${dv.toFixed(1)} nœud(s) de plus avant de décrocher`, `holds ${dv.toFixed(1)} kn more before blowing out`) : T(`décroche ${(-dv).toFixed(1)} nœud(s) plus tôt`, `blows out ${(-dv).toFixed(1)} kn earlier`));
+  const dt2 = v.tail - base.tail;
+  if (Math.abs(dt2) > 1.5) parts.push(dt2 > 0 ? T(`la queue balaie plus large (+${dt2.toFixed(0)} mm)`, `wider tail sweep (+${dt2.toFixed(0)} mm)`) : T(`la queue balaie moins (${dt2.toFixed(0)} mm)`, `narrower tail sweep (${dt2.toFixed(0)} mm)`));
+  const drl = v.roll - base.roll;
+  if (Math.abs(drl) > 5) parts.push(drl > 0 ? T(`roule davantage (+${drl.toFixed(0)}°)`, `rolls more (+${drl.toFixed(0)}°)`) : T(`roule moins (${drl.toFixed(0)}°)`, `rolls less (${drl.toFixed(0)}°)`));
   const dr = v.righting - base.righting;
   if (Math.abs(dr) > 0.4) parts.push(dr > 0 ? T('plus stable en roulis', 'more roll-stable') : T('moins stable en roulis', 'less roll-stable'));
   if (Math.sign(v.net) !== Math.sign(base.net) && Math.abs(v.net - base.net) > 0.1) parts.push(v.net < 0 ? T('devient coulant', 'becomes sinking') : T('devient flottant', 'becomes floating'));

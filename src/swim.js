@@ -277,7 +277,12 @@ export class SwimView {
     const p = sim.pos;
     const stop = this.params.scenario === 'stop';
     this.pivot.position.set(p.x, p.y, p.z);
-    this.pivot.rotation.set(sim.roll, sim.yaw, sim.pitch, 'YZX');
+    if (sim.R) {
+      const R = sim.R;
+      this._m4 = this._m4 || new THREE.Matrix4();
+      this._m4.set(R[0], R[1], R[2], 0, R[3], R[4], R[5], 0, R[6], R[7], R[8], 0, 0, 0, 0, 1);
+      this.pivot.quaternion.setFromRotationMatrix(this._m4);
+    } else this.pivot.rotation.set(sim.roll, sim.yaw, sim.pitch, 'YZX');
     for (const hp of this.lure.userData.hookPivots) {
       const target = -sim.pitch * 0.85 + Math.sin(sim.phase * 0.5) * 0.08;
       hp.rotation.z += (target - hp.rotation.z) * Math.min(1, dt * 8);
